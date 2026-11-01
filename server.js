@@ -114,7 +114,11 @@ class ZeroTTSManager {
     this.proc = spawn(pyBin, [scriptPath], {
       cwd: __dirname,
       // Edge (chính hoặc dự phòng cho Vibi) luôn dùng giọng Microsoft của gói phòng
-      env: { ...process.env, EDGE_TTS_VOICE: process.env.EDGE_TTS_VOICE || (isEdgeVoice(TTS_DEFAULT_VOICE) ? TTS_DEFAULT_VOICE : PACK.tts.voice) },
+      env: {
+        ...process.env,
+        EDGE_TTS_VOICE:
+          process.env.EDGE_TTS_VOICE || (isEdgeVoice(TTS_DEFAULT_VOICE) ? TTS_DEFAULT_VOICE : PACK.tts.edgeVoice || PACK.tts.voice)
+      },
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
@@ -1158,13 +1162,16 @@ setInterval(() => checkSchedule(), 15 * 1000).unref();
 // Phòng vắng quá IDLE_TALK_MINUTES phút => đọc 1 lời dạy / câu Kinh Thánh hoặc lời mời tương tác.
 // Màn hình không bao giờ "đứng hình" quá lâu — điều TikTok hay đánh giá thấp ở phòng live 24/7.
 let idleTalkIndex = 0;
+const idleEnabled = () => typeof PACK.speech.idle === 'function' || (PACK.idleTalks || []).length > 0;
 function runIdleTalk() {
-  if (typeof PACK.speech.idle !== 'function') return null;
+  if (!idleEnabled()) return null;
   const talks = PACK.idleTalks || [];
   idleTalkIndex += 1;
-  // Xen kẽ: 2 lần đọc lời dạy, 1 lần lời mời tương tác
-  if (talks.length && idleTalkIndex % 3 === 0) {
-    const text = talks[Math.floor(idleTalkIndex / 3) % talks.length];
+  // Xen kẽ: 2 lần đọc lời dạy, 1 lần lời mời tương tác (gói không có speech.idle => chỉ đọc lời nhắc)
+  const deckTurn = typeof PACK.speech.idle === 'function' && !(talks.length && idleTalkIndex % 3 === 0);
+  if (!deckTurn) {
+    if (!talks.length) return null;
+    const text = talks[idleTalkIndex % talks.length];
     return broadcastSystemEvent({ type: 'idleTalk', user: PACK.defaultName, ttsText: text });
   }
   const card = FORTUNE_DECK[Math.floor(Math.random() * FORTUNE_DECK.length)];
@@ -1176,7 +1183,7 @@ function runIdleTalk() {
   });
 }
 setInterval(() => {
-  if (!(IDLE_TALK_MINUTES > 0) || typeof PACK.speech.idle !== 'function') return;
+  if (!(IDLE_TALK_MINUTES > 0) || !idleEnabled()) return;
   if (state.settings.autoSim) return;
   if (wss.clients.size === 0) return; // không có màn hình OBS nào đang mở
   if (Date.now() - lastRitualAt < IDLE_TALK_MINUTES * 60 * 1000) return;
@@ -1198,10 +1205,11 @@ let pregenRunning = null;
 async function pregenerateStaticSpeech() {
   if (pregenRunning) return { running: true };
   const lines = staticSpeechLines();
-  const report = { total: lines.length, ok: 0, cached: 0, failed: 0, chars: 0, engine: TTS_ENGINE };
+  const report = { total: lines.length, ok: 0, cached: 0, failed: 0, chars: 0, engine: TTS_ENGINE, files: [] };
   pregenRunning = (async () => {
     for (const text of lines) {
       const res = await zeroTts.synthesize(text);
+      if (res.ok && res.file) report.files.push(res.file);
       if (!res.ok) report.failed += 1;
       else if (res.cached) report.cached += 1;
       else {
@@ -1518,6 +1526,33 @@ async function cleanTtsCache() {
   }
 }
 setInterval(cleanTtsCache, 30 * 60 * 1000).unref();
+
+// Giọng THU SẴN đi kèm mã nguồn (thư mục voice-prerecorded/, tạo bằng npm run pregen rồi commit).
+// Khi khởi động: chép vào bộ đệm => máy mới (vd. MacBook) phát ngay các câu cố định, không tốn credit.
+// Tên file chứa mã băm của (giọng + mẫu giọng + ngôn ngữ + câu chữ) => đổi giọng thì file cũ tự không dùng.
+const PRERECORDED_DIR = path.join(__dirname, 'voice-prerecorded');
+function seedPrerecordedVoice() {
+  try {
+    if (!fs.existsSync(PRERECORDED_DIR)) return;
+    let copied = 0;
+    for (const name of fs.readdirSync(PRERECORDED_DIR)) {
+      if (!/\.(mp3|wav)$/i.test(name)) continue;
+      const dest = path.join(TTS_CACHE_DIR, name);
+      if (fs.existsSync(dest)) {
+        const now = new Date();
+        fs.utimesSync(dest, now, now); // làm mới để không bị dọn
+        continue;
+      }
+      fs.copyFileSync(path.join(PRERECORDED_DIR, name), dest);
+      copied++;
+    }
+    if (copied) console.log(`[TTS] Đã nạp ${copied} câu thu sẵn từ voice-prerecorded/`);
+  } catch (e) {
+    console.warn('[TTS] Không nạp được giọng thu sẵn:', e.message);
+  }
+}
+seedPrerecordedVoice();
+setInterval(seedPrerecordedVoice, 24 * 3600 * 1000).unref();
 setTimeout(cleanTtsCache, 60 * 1000).unref();
 
 // Ghi nhật ký bộ nhớ mỗi giờ để phát hiện rò rỉ khi chạy dài ngày

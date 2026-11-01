@@ -167,6 +167,18 @@ pm2 start ecosystem.config.cjs --only church-ko,temple-ko --update-env
 ```
 Hoặc chạy thử 1 phòng: `TTS_ENGINE=vibi VIBI_API_KEY=... VIBI_VOICE_ID=... npm run start:church-ko`.
 
+### ✅ Đã cấu hình sẵn: giọng SUNNY cho cả 3 phòng
+
+| Phòng | Ngôn ngữ | Mẫu giọng (*model*) | Câu đã thu sẵn |
+| :--- | :--- | :--- | :---: |
+| Chùa tiếng Việt (`temple.vi`) | `vi` | `eleven_v4` (`eleven_multilingual_v2` không có tiếng Việt) | 9 |
+| Chùa tiếng Hàn (`temple.ko`) | `ko` | `eleven_multilingual_v2` | 19 |
+| Nhà thờ tiếng Hàn (`church.ko`) | `ko` | `eleven_multilingual_v2` | 21 |
+
+49 câu cố định đã được thu bằng giọng Sunny và nằm trong thư mục **`voice-prerecorded/`** (đi kèm mã nguồn). Máy chủ tự nạp khi khởi động ⇒ trên MacBook chỉ cần đặt `VIBI_API_KEY` là chạy, các câu này **không tốn credit**. Đã kiểm chứng: xoá sạch bộ đệm, khởi động lại, đọc lại cả 30 câu của 2 phòng ⇒ số credit không đổi.
+
+Đổi giọng khác hoặc sửa câu chữ ⇒ thu lại: chạy phòng rồi `npm run pregen:save -- 3002` (số cổng của phòng), sau đó `git add voice-prerecorded && git commit`.
+
 ### Thu sẵn câu cố định — "thu 1 lần, dùng mãi"
 Nội dung đọc gồm 2 loại:
 - **Câu cố định**: lời Phật dạy / câu Kinh Thánh khi phòng vắng, thông báo giờ lễ, lời mời bình luận. Phòng Nhà thờ có 21 câu (khoảng 1.400 ký tự). Thu 1 lần là đủ:

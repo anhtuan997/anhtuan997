@@ -14,6 +14,7 @@
     "setup:tts-ko": "python3 -m venv .venv && .venv/bin/pip install -r requirements-edge.txt",
     "test": "node --test",
     "pregen": "node tools/pregen.js",
+    "pregen:save": "node tools/pregen.js --save",
     "vibi:voices": "node tools/vibi-voices.js"
   },
   "dependencies": {

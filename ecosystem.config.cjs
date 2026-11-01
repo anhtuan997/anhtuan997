@@ -24,21 +24,25 @@ const common = {
   time: true
 };
 
-// Giọng Vibi (vibi.pro — ElevenLabs/MiniMax/CapCut, trả phí). Bật bằng cách đặt biến môi trường
-// TRƯỚC khi chạy pm2 (KHÔNG ghi khoá vào file này để tránh lộ khi đẩy lên GitHub):
-//   Linux/macOS:  export VIBI_API_KEY=...  VIBI_VOICE_ID=...  VIBI_PROVIDER=elevenlabs
-//   Windows cmd:  set VIBI_API_KEY=...  &  set VIBI_VOICE_ID=...
-// Chưa đặt VIBI_API_KEY => phòng dùng giọng miễn phí edge-tts như cũ.
-// Tìm giọng: node tools/vibi-voices.js --lang ko --gender female
-function vibiEnv(defaultLang) {
-  if (!process.env.VIBI_API_KEY || !process.env.VIBI_VOICE_ID) return {};
+// Giọng Vibi (vibi.pro — trả phí theo ký tự). Giọng đã chọn: SUNNY (ElevenLabs, nữ, ấm, điềm tĩnh)
+// cho CẢ 3 phòng. Chỉ cần đặt khoá API bằng biến môi trường TRƯỚC khi chạy pm2
+// (KHÔNG ghi khoá vào file này để tránh lộ khi đẩy lên GitHub):
+//   macOS/Linux:  export VIBI_API_KEY=...        Windows cmd:  set VIBI_API_KEY=...
+// Chưa đặt VIBI_API_KEY => phòng dùng giọng miễn phí như cũ (ZeroTTS Mai Chi / edge-tts SunHi).
+// Đổi giọng: đặt thêm VIBI_VOICE_ID (tìm bằng: npm run vibi:voices -- --lang ko)
+const SUNNY = '4p0HBzAAGyju0nYfNntV';
+function vibiEnv(language, model) {
+  if (!process.env.VIBI_API_KEY) return {};
   return {
     TTS_ENGINE: 'vibi',
     VIBI_API_KEY: process.env.VIBI_API_KEY,
-    VIBI_VOICE_ID: process.env.VIBI_VOICE_ID,
+    VIBI_VOICE_ID: process.env.VIBI_VOICE_ID || SUNNY,
     VIBI_PROVIDER: process.env.VIBI_PROVIDER || 'elevenlabs',
-    VIBI_LANGUAGE: process.env.VIBI_LANGUAGE || (process.env.VIBI_PROVIDER === 'minimax' ? 'Korean' : defaultLang),
-    VIBI_DAILY_CHAR_LIMIT: process.env.VIBI_DAILY_CHAR_LIMIT || 30000 // hết hạn mức => tự dùng edge-tts miễn phí
+    VIBI_LANGUAGE: language,
+    // Mẫu giọng: tiếng Hàn dùng eleven_multilingual_v2 (đúng bản đã nghe thử);
+    // tiếng Việt cần eleven_v4 vì multilingual_v2 KHÔNG có tiếng Việt
+    VIBI_MODEL: model,
+    VIBI_DAILY_CHAR_LIMIT: process.env.VIBI_DAILY_CHAR_LIMIT || 30000 // hết hạn mức => tự dùng giọng miễn phí
   };
 }
 
@@ -55,7 +59,14 @@ module.exports = {
       // Chùa tiếng Việt (bản gốc) — giọng ZeroTTS Mai Chi, chạy offline
       ...common,
       name: 'temple-live',
-      env: { ...commonEnv, PACK: 'temple.vi', PORT: 3000, TIKTOK_USER: 'zenfacts_vn' }
+      env: {
+        ...commonEnv,
+        PACK: 'temple.vi',
+        PORT: 3000,
+        TIKTOK_USER: 'zenfacts_vn',
+        IDLE_TALK_MINUTES: 5,
+        ...vibiEnv('vi', 'eleven_v4')
+      }
     },
     {
       // Chùa tiếng Hàn (온라인 법당) — giọng edge-tts ko-KR-SunHiNeural (cần Internet)
@@ -67,7 +78,7 @@ module.exports = {
         PORT: 3001,
         TIKTOK_USER: 'tai_khoan_chua_han', // <== SỬA
         IDLE_TALK_MINUTES: 5, // phòng vắng 5 phút => tự đọc 1 lời Phật dạy (0 = tắt)
-        ...vibiEnv('ko')
+        ...vibiEnv('ko', 'eleven_multilingual_v2')
       }
     },
     {
@@ -81,7 +92,7 @@ module.exports = {
         TIKTOK_USER: 'tai_khoan_nha_tho_han', // <== SỬA
         IDLE_TALK_MINUTES: 5,
         // TTS_VOICE: 'ko-KR-InJoonNeural',    // giọng nam (mặc định: giọng nữ SunHi)
-        ...vibiEnv('ko')
+        ...vibiEnv('ko', 'eleven_multilingual_v2')
       }
     }
   ]

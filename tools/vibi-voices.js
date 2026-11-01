@@ -139,7 +139,7 @@ async function capcut() {
 async function say(text, voiceId, provider) {
   const language = provider === 'minimax' ? MINIMAX_LANG[LANG] || LANG : LANG;
   const body = { text, provider, language_code: language, voice_settings: { speed: 1.0 } };
-  if (provider === 'elevenlabs') Object.assign(body, { model_id: 'eleven_multilingual_v2' });
+  if (provider === 'elevenlabs') Object.assign(body, { model_id: opt('model', 'eleven_multilingual_v2') });
   if (provider === 'minimax') Object.assign(body, { model_id: 'speech-2.8-turbo' });
   const task = await api(`/v1/text-to-speech/${encodeURIComponent(voiceId)}`, { method: 'POST', body });
   process.stdout.write(`⏳ Tác vụ ${task.id}`);
@@ -150,7 +150,8 @@ async function say(text, voiceId, provider) {
     if (t.status === 'completed') {
       const url = (t.result && t.result.audio_url) || t.audio_url;
       const res = await fetch(url.startsWith('/') ? BASE + url : url, { headers: { 'xi-api-key': KEY } });
-      const out = path.join(__dirname, '..', 'data', `vibi-sample-${provider}-${voiceId}.mp3`.replace(/[^\w.-]/g, '_'));
+      const tag = opt('model', '') ? `-${opt('model', '')}-${LANG}` : '';
+      const out = path.join(__dirname, '..', 'data', `vibi-sample-${provider}-${voiceId}${tag}.mp3`.replace(/[^\w.-]/g, '_'));
       fs.mkdirSync(path.dirname(out), { recursive: true });
       fs.writeFileSync(out, Buffer.from(await res.arrayBuffer()));
       console.log(`\n✅ Đã lưu: ${out}  (tốn ${t.credits_deducted ?? '?'} credit)`);

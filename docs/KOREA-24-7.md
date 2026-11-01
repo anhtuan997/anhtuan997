@@ -209,6 +209,59 @@ Muốn **giọng của chính bạn** thay vì giọng có sẵn: API Vibi có *
 
 ---
 
+## 5D. ⭐ Giọng đọc CHẠY TRÊN MÁY (miễn phí, không cần Internet) — Qwen3-TTS
+
+Hiện dự án **tập trung 1 phòng: Nhà thờ tiếng Hàn** (`church.ko`, cổng 3002).
+
+**Mô hình**: [Qwen3-TTS](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice) của Alibaba Qwen.
+- Giấy phép **Apache-2.0**: được dùng thương mại.
+- Có tiếng Hàn.
+- Có chế độ nhân bản giọng từ một đoạn mẫu ngắn.
+
+**Giọng**: giọng nữ **riêng của dự án**, do chế độ *VoiceDesign* của Qwen3 tạo ra từ mô tả bằng chữ: "nữ trung niên, ấm, điềm tĩnh, chậm rãi như người dẫn cầu nguyện". Giọng mẫu nằm ở `voice-ref/ko_voice.wav`; mỗi câu đọc trên live đều nhân bản từ giọng mẫu này, nên giọng luôn giống nhau.
+
+> **Vì sao không nhân bản giọng Sunny?** Sunny trong thư viện ElevenLabs là giọng của một người thật, đăng lên để nhận tiền bản quyền mỗi lần được dùng. ElevenLabs yêu cầu người nhân bản phải có quyền với giọng đó. Nhân bản Sunny để chạy riêng sẽ xâm phạm quyền của chủ giọng, và tài khoản/kênh của bạn có thể gặp rủi ro. Muốn giọng một người cụ thể thì cần người đó đồng ý: tự thu giọng của bạn, hoặc thuê một người Hàn thu âm có hợp đồng. Bỏ file thu âm vào `voice-ref/ko_voice.wav`, ghi đúng lời đã đọc vào `voice-ref/ko_voice.txt`.
+
+### Đã kiểm chứng (trên máy ảo chỉ có CPU 4 nhân, mô hình 0.6B)
+| Câu thật của phòng | Phát âm (chuyển giọng thành chữ) | Cao độ |
+| :--- | :---: | :---: |
+| Giọng mẫu (VoiceDesign) | 100% | 204 Hz |
+| Ý cầu nguyện của người xem | 100% | 202 Hz |
+| Cảm ơn quà tặng | 100% | 199 Hz |
+| Câu Kinh Thánh hôm nay | 100% | 198 Hz |
+
+Cao độ các câu gần như trùng giọng mẫu ⇒ giọng ổn định. Nghe thử: `docs/voice-samples/giong-local-nha-tho.mp3`.
+
+⚠️ **Tốc độ**: trên CPU máy ảo, cứ 1 giây âm thanh mất khoảng 4,3 giây để tạo, quá chậm cho live. MacBook M1 Pro Max dùng GPU (qua *MPS*, cách PyTorch chạy trên GPU của Mac) sẽ nhanh hơn nhiều, nhưng **tôi chưa đo được trên Mac**. Hãy chạy thử theo bước dưới và xem nhật ký: dòng `synthSec` là số giây tạo mỗi câu.
+- Nếu vẫn chậm: phòng vẫn chạy được, vì hàng đợi giọng đọc tối đa 6 câu và câu cố định đã thu sẵn. Bạn có thể giữ phần đọc bình luận bằng giọng Microsoft miễn phí (`TTS_ENGINE=edge`).
+
+### Cài và chạy trên MacBook
+```bash
+brew install python@3.12 ffmpeg            # nếu chưa có
+npm run setup:tts-local                    # tạo .venv, cài qwen-tts (+ PyTorch có hỗ trợ GPU Mac)
+TTS_ENGINE=local npm run start:local       # lần đầu tự tải mô hình ~2,5GB từ Hugging Face
+# thấy "[Qwen3-TTS] Sẵn sàng trên mps" là đang dùng GPU của Mac
+npm run pregen                             # thu sẵn 21 câu cố định (miễn phí, chạy 1 lần)
+```
+Chạy 24/7: `TTS_ENGINE=local pm2 start ecosystem.config.cjs && pm2 save`.
+
+| Biến | Mặc định | Ý nghĩa |
+| :--- | :---: | :--- |
+| `QWEN_TTS_MODEL` | `Qwen/Qwen3-TTS-12Hz-0.6B-Base` | Đổi sang `…-1.7B-Base` cho giọng tự nhiên hơn (chậm hơn, cần nhiều RAM hơn — MacBook 64GB dư sức) |
+| `QWEN_TTS_MODE` | `clone` | `speaker` = dùng giọng có sẵn **Sohee** (nữ, người Hàn) của mô hình CustomVoice |
+| `QWEN_TTS_DEVICE` | `auto` | `mps` (GPU Mac) / `cuda` / `cpu` |
+| `TTS_PYTHON` | `.venv/bin/python` | Python khác có cài Qwen3-TTS |
+
+### Tạo giọng khác
+```bash
+npm run voice:design -- --n 4                       # 4 phương án mới → voice-ref/candidates/
+npm run voice:design -- --instruct "A bright, friendly young Korean woman..." --n 3
+npm run voice:design -- --pick 2                    # chọn phương án 2 làm giọng chính
+```
+Đổi giọng xong thì chạy lại `npm run pregen`.
+
+---
+
 ## 5C. Chạy trên MacBook (Apple M1 / M2 / M3)
 
 MacBook M1 Pro/Max chạy tốt cả 3 phòng cùng lúc, kể cả cảnh 3D Nhà thờ ở chất lượng cao nhất (`q=1`).

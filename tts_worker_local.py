@@ -12,8 +12,8 @@ Hai chế độ (QWEN_TTS_MODE):
 
 Biến môi trường:
   QWEN_TTS_MODE     clone | speaker
-  QWEN_TTS_MODEL    mặc định: Qwen/Qwen3-TTS-12Hz-1.7B-Base (clone) / Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice (speaker)
-                    máy yếu: thay 1.7B bằng 0.6B (nhanh hơn ~2 lần, kém tự nhiên hơn chút)
+  QWEN_TTS_MODEL    mặc định: Qwen/Qwen3-TTS-12Hz-0.6B-Base (clone) / Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice (speaker)
+                    muốn giọng tự nhiên hơn (chậm hơn): Qwen/Qwen3-TTS-12Hz-1.7B-Base
   QWEN_TTS_DEVICE   auto | mps | cuda | cpu
   QWEN_REF_AUDIO    mặc định voice-ref/ko_voice.wav
   QWEN_REF_TEXT     mặc định nội dung voice-ref/ko_voice.txt
@@ -38,7 +38,7 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 MODE = os.environ.get("QWEN_TTS_MODE", "clone").strip().lower()
 DEFAULT_MODEL = {
-    "clone": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+    "clone": "Qwen/Qwen3-TTS-12Hz-0.6B-Base",  # đã kiểm chứng; muốn tự nhiên hơn: 1.7B-Base
     "speaker": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
 }
 MODEL_ID = os.environ.get("QWEN_TTS_MODEL", DEFAULT_MODEL.get(MODE, DEFAULT_MODEL["clone"]))

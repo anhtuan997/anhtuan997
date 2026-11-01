@@ -115,7 +115,31 @@ class ZeroTTSManager {
     this.inflight = new Map();
     this.reqCounter = 0;
     this.buffer = '';
+    this.restartDelayMs = 5000; // tăng dần tới 10 phút nếu worker cứ chết liên tục
+    this.restartTimer = null;
+    this.shuttingDown = false;
     this.startWorker();
+  }
+
+  // 24/7: worker Python chết (hết RAM, lỗi model...) => tự khởi động lại với độ trễ tăng dần
+  scheduleRestart() {
+    if (this.shuttingDown || this.restartTimer) return;
+    const delay = this.restartDelayMs;
+    this.restartDelayMs = Math.min(10 * 60 * 1000, this.restartDelayMs * 2);
+    console.warn(`[ZeroTTS] Sẽ khởi động lại worker sau ${Math.round(delay / 1000)}s`);
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null;
+      this.startWorker();
+    }, delay);
+    this.restartTimer.unref?.();
+  }
+
+  stop() {
+    this.shuttingDown = true;
+    clearTimeout(this.restartTimer);
+    try {
+      this.proc?.kill('SIGTERM');
+    } catch (_) {}
   }
 
   resolvePythonBin() {
@@ -150,10 +174,16 @@ class ZeroTTSManager {
       if (msg) console.log(`[ZeroTTS stderr] ${msg}`);
     });
 
+    this.proc.on('error', (err) => {
+      console.warn('[ZeroTTS] Không chạy được worker:', err.message);
+    });
+
     this.proc.on('exit', (code) => {
       console.warn(`[ZeroTTS] Worker thoát với mã ${code}`);
+      this.proc = null;
       this.ready = false;
       this.status = 'stopped';
+      this.scheduleRestart();
       for (const [, item] of this.pending) {
         clearTimeout(item.timer);
         item.resolve({ ok: false, error: 'ZeroTTS worker exited' });
@@ -172,6 +202,7 @@ class ZeroTTSManager {
       } else if (msg.type === 'ready') {
         this.ready = true;
         this.status = 'ready';
+        this.restartDelayMs = 5000;
         this.voice = msg.voice || 'maichi';
         this.voices = msg.voices || ['maichi'];
         this.model = msg.model || this.model;
@@ -301,6 +332,7 @@ let saveTimer = null;
 function saveState() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
+    pruneDevotees();
     const toSave = {
       totalIncense: state.totalIncense,
       totalMerit: state.totalMerit,
@@ -313,9 +345,14 @@ function saveState() {
       devotees: state.devotees,
       settings: state.settings
     };
-    fs.promises.writeFile(STATE_FILE, JSON.stringify(toSave, null, 2), 'utf8').catch((e) => {
-      console.error('[State] Lỗi lưu file:', e.message);
-    });
+    // Ghi ra file tạm rồi đổi tên => mất điện / crash giữa chừng không làm hỏng Bảng Vàng Công Đức
+    const tmp = `${STATE_FILE}.tmp`;
+    fs.promises
+      .writeFile(tmp, JSON.stringify(toSave, null, 2), 'utf8')
+      .then(() => fs.promises.rename(tmp, STATE_FILE))
+      .catch((e) => {
+        console.error('[State] Lỗi lưu file:', e.message);
+      });
   }, 1200);
 }
 
@@ -415,6 +452,23 @@ function recordDevotee(user, uniqueId, avatar, meritDelta, incenseDelta = 0, gif
   state.totalMerit += meritDelta;
   state.haloIntensity = Math.min(1.0, 0.35 + (state.totalMerit % 1000) / 1400);
   return dev;
+}
+
+// 24/7: mỗi người vào phòng đều được ghi lại => sau nhiều tuần file state phình to, sắp xếp
+// bảng xếp hạng chậm dần. Giữ tối đa MAX_DEVOTEES người có công đức cao nhất.
+const MAX_DEVOTEES = Math.max(500, Number(process.env.MAX_DEVOTEES) || 5000);
+function pruneDevotees() {
+  const keys = Object.keys(state.devotees);
+  if (keys.length <= MAX_DEVOTEES) return 0;
+  const keep = keys
+    .sort((a, b) => (state.devotees[b].merit || 0) - (state.devotees[a].merit || 0))
+    .slice(0, Math.floor(MAX_DEVOTEES * 0.8));
+  const next = {};
+  for (const k of keep) next[k] = state.devotees[k];
+  const removed = keys.length - keep.length;
+  state.devotees = next;
+  console.log(`[State] Dọn ${removed} thí chủ công đức thấp (giữ ${keep.length})`);
+  return removed;
 }
 
 function pushEventLog(evt) {
@@ -830,17 +884,73 @@ function extractUserFromEvent(data) {
   return { user, uniqueId, avatar };
 }
 
+// ----------------------------------------------------------------------------
+// 24/7: TỰ ĐỘNG KẾT NỐI LẠI PHÒNG LIVE
+//  - Mất mạng, TikTok ngắt WebSocket, phiên Live kết thúc rồi phát lại... => tự thử lại
+//  - Độ trễ tăng dần 15s → 30s → 60s → ... tối đa 5 phút (tránh bị TikTok chặn vì gọi dồn dập)
+//  - Chỉ dừng khi người vận hành chủ động gọi live.disconnect
+// ----------------------------------------------------------------------------
+const RECONNECT_MIN_MS = 15 * 1000;
+const RECONNECT_MAX_MS = 5 * 60 * 1000;
+const liveKeeper = {
+  wantedUser: null,
+  delayMs: RECONNECT_MIN_MS,
+  timer: null,
+  attempts: 0,
+  connectStartedAt: 0
+};
+
+function scheduleTikTokReconnect(reason) {
+  if (!liveKeeper.wantedUser || liveKeeper.timer) return;
+  const delay = liveKeeper.delayMs;
+  liveKeeper.delayMs = Math.min(RECONNECT_MAX_MS, liveKeeper.delayMs * 2);
+  liveKeeper.attempts += 1;
+  console.log(
+    `[TikTok Live] ${reason || 'Mất kết nối'} — thử lại @${liveKeeper.wantedUser} sau ${Math.round(delay / 1000)}s (lần ${liveKeeper.attempts})`
+  );
+  liveKeeper.timer = setTimeout(() => {
+    liveKeeper.timer = null;
+    if (!liveKeeper.wantedUser || state.tiktok.connected || state.tiktok.connecting) return;
+    connectTikTokLive(liveKeeper.wantedUser).catch((err) => {
+      scheduleTikTokReconnect(`Kết nối thất bại: ${err.message}`);
+    });
+  }, delay);
+}
+
+// Lưới an toàn: cứ 60s kiểm tra, nếu đáng lẽ phải kết nối mà không có gì đang chạy thì lên lịch lại
+setInterval(() => {
+  if (!liveKeeper.wantedUser) return;
+  // Kết nối bị treo quá 2 phút => huỷ và thử lại
+  if (state.tiktok.connecting && Date.now() - liveKeeper.connectStartedAt > 2 * 60 * 1000) {
+    console.warn('[TikTok Live] Kết nối bị treo quá 2 phút, huỷ để thử lại');
+    const stuck = tiktokConn;
+    tiktokConn = null;
+    try {
+      stuck?.disconnect();
+    } catch (_) {}
+    state.tiktok.connecting = false;
+  }
+  if (!state.tiktok.connected && !state.tiktok.connecting && !liveKeeper.timer) {
+    scheduleTikTokReconnect('Watchdog phát hiện chưa kết nối');
+  }
+}, 60 * 1000).unref();
+
 async function connectTikTokLive(usernameOrUrl) {
   const cleanUser = await resolveTikTokUsername(usernameOrUrl);
   if (!cleanUser) {
     throw new Error('Không tìm thấy @username hợp lệ từ dữ liệu nhập vào');
   }
+  liveKeeper.wantedUser = cleanUser;
+  liveKeeper.connectStartedAt = Date.now();
+  clearTimeout(liveKeeper.timer);
+  liveKeeper.timer = null;
 
   if (tiktokConn) {
+    const old = tiktokConn;
+    tiktokConn = null; // đặt null TRƯỚC để sự kiện DISCONNECTED của kết nối cũ không kích hoạt thử lại
     try {
-      await tiktokConn.disconnect();
+      await old.disconnect();
     } catch (_) {}
-    tiktokConn = null;
   }
 
   state.tiktok = {
@@ -853,13 +963,16 @@ async function connectTikTokLive(usernameOrUrl) {
   };
   broadcastNotification('temple.state', getPublicState());
 
-  tiktokConn = new TikTokLiveConnection(cleanUser, {
+  const conn = new TikTokLiveConnection(cleanUser, {
     processInitialData: true,
     fetchRoomInfoOnConnect: false,
     enableExtendedGiftInfo: false
   });
+  tiktokConn = conn;
 
   tiktokConn.on(ControlEvent.CONNECTED, (roomState) => {
+    liveKeeper.delayMs = RECONNECT_MIN_MS;
+    liveKeeper.attempts = 0;
     state.tiktok.connected = true;
     state.tiktok.connecting = false;
     state.tiktok.roomId = roomState?.roomId || tiktokConn?.roomId || null;
@@ -869,14 +982,37 @@ async function connectTikTokLive(usernameOrUrl) {
   });
 
   tiktokConn.on(ControlEvent.DISCONNECTED, () => {
+    if (tiktokConn !== conn) return; // kết nối cũ đã bị thay thế
     state.tiktok.connected = false;
     state.tiktok.connecting = false;
     console.log(`[TikTok Live] Đã ngắt kết nối @${cleanUser}`);
     broadcastNotification('temple.state', getPublicState());
+    scheduleTikTokReconnect('Bị ngắt kết nối');
+  });
+
+  // Phiên Live kết thúc (chủ phòng tắt Live / TikTok cắt luồng) => chờ rồi thử vào lại
+  tiktokConn.on(WebcastEvent.STREAM_END, () => {
+    if (tiktokConn !== conn) return;
+    console.log(`[TikTok Live] Phiên Live của @${cleanUser} đã kết thúc`);
+    state.tiktok.connected = false;
+    state.tiktok.connecting = false;
+    broadcastNotification('temple.state', getPublicState());
+    try {
+      conn.disconnect();
+    } catch (_) {}
+    scheduleTikTokReconnect('Phiên Live kết thúc');
   });
 
   tiktokConn.on(ControlEvent.ERROR, (err) => {
-    state.tiktok.lastError = err?.message || String(err);
+    let msg = err?.message || err?.info || err?.exception?.message;
+    if (!msg) {
+      try {
+        msg = typeof err === 'object' ? JSON.stringify(err).slice(0, 300) : String(err);
+      } catch (_) {
+        msg = String(err);
+      }
+    }
+    state.tiktok.lastError = msg;
     console.warn('[TikTok Live Warning]', state.tiktok.lastError);
     broadcastNotification('temple.state', getPublicState());
   });
@@ -973,20 +1109,27 @@ async function connectTikTokLive(usernameOrUrl) {
     broadcastNotification('temple.state', getPublicState());
     return state.tiktok;
   } catch (err) {
+    if (tiktokConn !== conn) throw err; // đã có lần kết nối mới thay thế
     state.tiktok.connected = false;
     state.tiktok.connecting = false;
     state.tiktok.lastError = err?.message || 'Không thể kết nối phòng Live (kiểm tra tài khoản đang phát Live chưa)';
     broadcastNotification('temple.state', getPublicState());
+    scheduleTikTokReconnect(`Kết nối thất bại: ${state.tiktok.lastError}`);
     throw new Error(state.tiktok.lastError);
   }
 }
 
 function disconnectTikTokLive() {
+  // Người vận hành chủ động ngắt => KHÔNG tự kết nối lại nữa
+  liveKeeper.wantedUser = null;
+  clearTimeout(liveKeeper.timer);
+  liveKeeper.timer = null;
   if (tiktokConn) {
-    try {
-      tiktokConn.disconnect();
-    } catch (_) {}
+    const old = tiktokConn;
     tiktokConn = null;
+    try {
+      old.disconnect();
+    } catch (_) {}
   }
   state.tiktok.connected = false;
   state.tiktok.connecting = false;
@@ -1204,6 +1347,120 @@ wss.on('connection', (ws) => {
 
 const zeroTts = new ZeroTTSManager();
 
+// ============================================================================
+// 9. VẬN HÀNH 24/7: HEALTHCHECK, DỌN RÁC, BẮT LỖI, TẮT AN TOÀN
+// ============================================================================
+const BOOT_AT = Date.now();
+app.get('/healthz', (_req, res) => {
+  const mem = process.memoryUsage();
+  res.json({
+    ok: true,
+    uptimeSec: Math.round((Date.now() - BOOT_AT) / 1000),
+    rssMB: Math.round(mem.rss / 1048576),
+    heapMB: Math.round(mem.heapUsed / 1048576),
+    wsClients: wss.clients.size,
+    devotees: Object.keys(state.devotees).length,
+    tiktok: {
+      connected: state.tiktok.connected,
+      connecting: state.tiktok.connecting,
+      username: state.tiktok.username,
+      reconnectAttempts: liveKeeper.attempts,
+      lastError: state.tiktok.lastError
+    },
+    tts: zeroTts.getStatus().status
+  });
+});
+
+// Bộ đệm giọng đọc: mỗi câu khấn tạo 1 file WAV => chạy 24/7 sẽ đầy ổ cứng nếu không dọn
+const TTS_CACHE_MAX_AGE_MS = (Number(process.env.TTS_CACHE_MAX_AGE_HOURS) || 24) * 3600 * 1000;
+const TTS_CACHE_MAX_FILES = Number(process.env.TTS_CACHE_MAX_FILES) || 3000;
+async function cleanTtsCache() {
+  try {
+    const names = await fs.promises.readdir(TTS_CACHE_DIR);
+    const files = [];
+    for (const name of names) {
+      const full = path.join(TTS_CACHE_DIR, name);
+      try {
+        const st = await fs.promises.stat(full);
+        if (st.isFile()) files.push({ full, mtime: st.mtimeMs });
+      } catch (_) {}
+    }
+    files.sort((a, b) => b.mtime - a.mtime); // mới nhất trước
+    const now = Date.now();
+    let removed = 0;
+    for (let i = 0; i < files.length; i++) {
+      if (i >= TTS_CACHE_MAX_FILES || now - files[i].mtime > TTS_CACHE_MAX_AGE_MS) {
+        await fs.promises.unlink(files[i].full).catch(() => {});
+        removed++;
+      }
+    }
+    if (removed) console.log(`[TTS Cache] Đã dọn ${removed} file cũ (còn ${files.length - removed})`);
+  } catch (e) {
+    console.warn('[TTS Cache] Lỗi dọn bộ đệm:', e.message);
+  }
+}
+setInterval(cleanTtsCache, 30 * 60 * 1000).unref();
+setTimeout(cleanTtsCache, 60 * 1000).unref();
+
+// Ghi nhật ký bộ nhớ mỗi giờ để phát hiện rò rỉ khi chạy dài ngày
+setInterval(() => {
+  const mem = process.memoryUsage();
+  console.log(
+    `[Health] uptime ${Math.round((Date.now() - BOOT_AT) / 3600000)}h • RSS ${Math.round(mem.rss / 1048576)}MB • ` +
+      `ws ${wss.clients.size} • TikTok ${state.tiktok.connected ? 'ON' : 'OFF'} • TTS ${zeroTts.status}`
+  );
+}, 60 * 60 * 1000).unref();
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Process] Promise bị từ chối không được xử lý:', reason?.message || reason);
+});
+process.on('uncaughtException', (err) => {
+  // Trạng thái tiến trình không còn đáng tin => lưu dữ liệu rồi thoát để PM2/systemd khởi động lại sạch sẽ
+  console.error('[Process] Lỗi nghiêm trọng, khởi động lại:', err);
+  shutdown(1);
+});
+
+function writeStateSync() {
+  try {
+    pruneDevotees();
+    const toSave = {
+      totalIncense: state.totalIncense,
+      totalMerit: state.totalMerit,
+      woodenFishHits: state.woodenFishHits,
+      bellRings: state.bellRings,
+      lanternCount: state.lanternCount,
+      fortuneCount: state.fortuneCount,
+      activeIncenseSticks: state.activeIncenseSticks,
+      offerings: state.offerings,
+      devotees: state.devotees,
+      settings: state.settings
+    };
+    const tmp = `${STATE_FILE}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(toSave, null, 2), 'utf8');
+    fs.renameSync(tmp, STATE_FILE);
+  } catch (e) {
+    console.error('[State] Không lưu được khi tắt:', e.message);
+  }
+}
+
+let shuttingDown = false;
+function shutdown(code = 0) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log('[Process] Đang tắt an toàn: lưu Bảng Vàng Công Đức, dừng TTS, ngắt TikTok...');
+  clearTimeout(saveTimer);
+  writeStateSync();
+  zeroTts.stop();
+  liveKeeper.wantedUser = null;
+  try {
+    tiktokConn?.disconnect();
+  } catch (_) {}
+  server.close();
+  setTimeout(() => process.exit(code), 800).unref();
+}
+process.on('SIGINT', () => shutdown(0));
+process.on('SIGTERM', () => shutdown(0));
+
 server.listen(PORT, () => {
   console.log(`============================================================`);
   console.log(`🪷 CHÙA ONLINE TIKTOK LIVE RPC ĐÃ KHỞI ĐỘNG`);
@@ -1217,6 +1474,7 @@ server.listen(PORT, () => {
   if (defaultChannel) {
     connectTikTokLive(defaultChannel).catch((err) => {
       console.warn(`[Auto-Connect @${defaultChannel}] Chưa kết nối được ngay:`, err.message);
+      scheduleTikTokReconnect('Kết nối lần đầu thất bại');
     });
   }
 });

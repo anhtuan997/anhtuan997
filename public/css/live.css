@@ -1120,3 +1120,124 @@ body.obs-mode .stage-wrapper {
   border-left: 3px solid var(--gold-main);
   color: #f3e5cf;
 }
+
+/* ==========================================================================
+   11. CHẾ ĐỘ 3D CHÂN THỰC (public/js/depth3d.js)
+   - Nền WebGL có thị sai chiều sâu, ánh sáng bloom, tia sáng thể tích
+   - Mỗi nhóm nhân vật là 1 "lớp chiều sâu" dịch chuyển khớp với nền
+   - Nhân vật có bóng tiếp xúc sàn, phản chiếu trên sàn đá bóng, nhịp thở nhẹ
+   ========================================================================== */
+.depth3d-canvas {
+  position: absolute;
+  inset: 0;
+  width: 1080px;
+  height: 1920px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Khi WebGL chạy thì ẩn ảnh tĩnh phía dưới (đỡ tốn GPU); mất WebGL thì ảnh tĩnh hiện lại */
+body.fx3d-on .sanctuary-bg-img {
+  visibility: hidden;
+}
+
+.depth-wrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.depth-layer {
+  /* Tâm phóng to/thu nhỏ trùng tâm khung hình — khớp với shader WebGL */
+  transform-origin: 540px 960px;
+  will-change: transform;
+}
+.depth-wrap .ritual-hotspot,
+.depth-wrap .incense-burner-zone {
+  pointer-events: auto;
+}
+
+.hall-row {
+  position: absolute;
+  inset: 0;
+}
+.figure3d .devotee-sprite {
+  /* Màu áo riêng từng người + phối cảnh không khí (hàng xa nhạt như có sương khói hương) */
+  filter: var(--row-haze, brightness(1)) var(--robe-tone, brightness(1));
+}
+.figure3d .devotee-sprite.flip {
+  transform: scaleX(-1);
+}
+
+/* Khung chứa nhân vật: nhịp thở + bóng đổ tiếp xúc sàn */
+.figure3d {
+  position: relative;
+  transform-origin: 50% 100%;
+  animation: devoteeBreathe 4.2s ease-in-out infinite;
+}
+.figure3d::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 92%;
+  height: 14px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at 50% 45%,
+    rgba(0, 0, 0, 0.62) 0%,
+    rgba(10, 2, 0, 0.32) 42%,
+    rgba(10, 2, 0, 0) 72%
+  );
+  z-index: -1;
+  pointer-events: none;
+}
+/* Phản chiếu mờ trên sàn đá bóng (giống ánh đèn lồng đang phản chiếu trong ảnh nền) */
+.figure3d .devotee-sprite {
+  object-position: 50% 100%; /* ảnh 3D đã cắt sát chân => chân chạm đáy khung */
+  -webkit-box-reflect: below -1px linear-gradient(to bottom, transparent 0%, transparent 62%, rgba(0, 0, 0, 0.22) 100%);
+}
+/* Bóng đổ dạng hình chiếu: chính hình nhân vật, tô đen, lật xuống sàn, nghiêng theo nguồn sáng */
+.figure3d .figure-shadow {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: 50% 100%;
+  transform-origin: 50% 100%;
+  transform: scaleY(-0.34) skewX(var(--shadow-skew, 0deg));
+  filter: brightness(0) blur(2.4px);
+  opacity: 0.55;
+  z-index: -1;
+  pointer-events: none;
+}
+/* Trên thảm nhung không có phản chiếu */
+.figure3d.no-reflect .devotee-sprite {
+  -webkit-box-reflect: none;
+}
+
+@keyframes devoteeBreathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.006, 1.014); }
+}
+
+/* Lớp sương ánh sáng ấm phủ nhẹ lên Đạo Tràng — tạo cảm giác không khí có khói hương */
+.atmo-haze {
+  position: absolute;
+  inset: 0;
+  z-index: 13;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 38% at 50% 34%, rgba(255, 205, 130, 0.10) 0%, rgba(255, 190, 110, 0) 70%),
+    linear-gradient(180deg, rgba(255, 196, 120, 0) 55%, rgba(255, 186, 110, 0.05) 70%, rgba(20, 6, 2, 0.18) 100%);
+  animation: atmoBreath 11s ease-in-out infinite;
+}
+@keyframes atmoBreath {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+body:not(.fx3d-on) .atmo-haze {
+  display: none;
+}

@@ -23,7 +23,11 @@
           class="sanctuary-bg-img"
         />
 
+        <!-- 1A. NỀN 3D CHÂN THỰC (WebGL: thị sai chiều sâu + ánh sáng + tia sáng thể tích) -->
+        <canvas id="depth3dCanvas" class="depth3d-canvas"></canvas>
+
         <!-- 1B. HỆ THỐNG HÀO QUANG ĐỨC PHẬT A DI ĐÀ (XOAY CHUYỂN VẠN TRƯỢNG, KHÔNG CHE MẶT PHẬT) -->
+        <div class="depth-wrap" id="depthBuddhaLayer" data-depth="0.11" style="z-index: 4;">
         <div class="buddha-halo-system" id="buddhaHaloSystem">
           <div class="halo-sunburst"></div>
           <div class="halo-counter-rays"></div>
@@ -44,6 +48,7 @@
 
         <!-- HÀO QUANG ĐÀI SEN TRÊN TAY ĐỨC PHẬT A DI ĐÀ -->
         <div class="lotus-hand-halo" id="lotusHandHalo"></div>
+        </div>
 
         <!-- 2. THANH TRẠNG THÁI MỎNG TRÊN ĐỈNH (KHÔNG CHE TƯỢNG PHẬT) -->
         <header class="minimal-top-bar">
@@ -59,13 +64,18 @@
         </header>
 
         <!-- 3. CỘT SÁNG TÂM HƯƠNG & LƯ HƯƠNG TRUNG TÂM -->
-        <div class="sacred-light-beam" id="sacredLightBeam"></div>
+        <div class="depth-wrap" id="depthBeamLayer" data-depth="0.14" style="z-index: 6;">
+          <div class="sacred-light-beam" id="sacredLightBeam"></div>
+        </div>
 
+        <div class="depth-wrap" id="depthIncenseLayer" data-depth="0.21" style="z-index: 9;">
         <div class="incense-burner-zone" id="incenseBurnerZone" title="Bấm để Thắp Hương Dâng Phật">
           <div class="incense-sticks-holder" id="incenseSticksHolder"></div>
         </div>
+        </div>
 
         <!-- PHÁP KHÍ TƯƠNG TÁC HAI BÊN BÀN THỜ: ĐẠI HỒNG CHUNG & MÕ GỖ & ỐNG XĂM -->
+        <div class="depth-wrap" id="depthHotspotLayer" data-depth="0.23" style="z-index: 15;">
         <div class="ritual-hotspot bell-hotspot" id="bellStation" title="Bấm để Thỉnh Đại Hồng Chung">
           <span class="hotspot-icon">🔔</span>
           <span class="hotspot-label">Thỉnh Chuông</span>
@@ -80,21 +90,23 @@
           <span class="hotspot-icon">🎋</span>
           <span class="hotspot-label">Xin Xăm</span>
         </div>
+        </div>
 
         <!-- 4. CHỦ LỄ ĐANG DÂNG HƯƠNG TRƯỚC LƯ HƯƠNG ĐỒNG (GIỮA CHÁNH ĐIỆN) -->
+        <div class="depth-wrap" id="depthCentralLayer" style="z-index: 14;">
         <div class="central-worshipper" id="centralWorshipper">
           <div class="worshipper-wish-bubble" id="centralWishBubble">
             “Cầu gia đình bình an, vạn sự cát tường như ý”
           </div>
-          <div class="central-sprite-stack" id="centralSpriteStack">
-            <img src="/assets/devotee_walk.png" data-pose="walk1" class="devotee-sprite pose-frame" alt="" />
-            <img src="/assets/devotee_walk_2.png" data-pose="walk2" class="devotee-sprite pose-frame" alt="" />
-            <img src="/assets/devotee_kneel_down.png" data-pose="kneelDown" class="devotee-sprite pose-frame" alt="" />
-            <img src="/assets/devotee.png" data-pose="kneel" class="devotee-sprite pose-frame active" alt="" />
-            <img src="/assets/devotee_bow.png" data-pose="forehead" class="devotee-sprite pose-frame" alt="" />
-            <img src="/assets/devotee_bow_mid.png" data-pose="bowMid" class="devotee-sprite pose-frame" alt="" />
-            <img src="/assets/devotee_prostrate.png" data-pose="prostrate" class="devotee-sprite pose-frame" alt="" />
-            <img src="/assets/devotee_prostrate_deep.png" data-pose="prostrateDeep" class="devotee-sprite pose-frame" alt="" />
+          <div class="central-sprite-stack figure3d no-reflect" id="centralSpriteStack">
+            <img src="/assets/3d/devotee_walk.png" data-pose="walk1" class="devotee-sprite pose-frame" alt="" />
+            <img src="/assets/3d/devotee_walk_2.png" data-pose="walk2" class="devotee-sprite pose-frame" alt="" />
+            <img src="/assets/3d/devotee_kneel_down.png" data-pose="kneelDown" class="devotee-sprite pose-frame" alt="" />
+            <img src="/assets/3d/devotee.png" data-pose="kneel" class="devotee-sprite pose-frame active" alt="" />
+            <img src="/assets/3d/devotee_bow.png" data-pose="forehead" class="devotee-sprite pose-frame" alt="" />
+            <img src="/assets/3d/devotee_bow_mid.png" data-pose="bowMid" class="devotee-sprite pose-frame" alt="" />
+            <img src="/assets/3d/devotee_prostrate.png" data-pose="prostrate" class="devotee-sprite pose-frame" alt="" />
+            <img src="/assets/3d/devotee_prostrate_deep.png" data-pose="prostrateDeep" class="devotee-sprite pose-frame" alt="" />
           </div>
           <div class="name-tag central-name-tag">
             <div class="tag-avatar" id="centralAvatar">🙏</div>
@@ -104,12 +116,16 @@
             </div>
           </div>
         </div>
+        </div>
 
         <!-- 5. HÀNG 6 ĐỆM QUỲ VIP (TOP 6 BẢNG VÀNG CÔNG ĐỨC TRÊN BỤC GỖ) -->
         <div class="vip-cushions-layer" id="vipCushionsLayer"></div>
 
         <!-- 6. ĐẠO TRÀNG NGƯỜI XEM QUỲ LỄ HAI BÊN THẢM ĐỎ (40 CHỖ NGỒI PHỐI CẢNH) -->
         <div class="congregation-hall" id="congregationHall"></div>
+
+        <!-- 6B. SƯƠNG ÁNH SÁNG ẤM (CHỈ BẬT Ở CHẾ ĐỘ 3D) -->
+        <div class="atmo-haze" aria-hidden="true"></div>
 
         <!-- 7. NGƯỜI XEM ĐANG BƯỚC ĐI TRÊN THẢM ĐỎ TIẾN LÊN DÂNG HƯƠNG -->
         <div class="carpet-walker-layer" id="carpetWalkerLayer"></div>
@@ -255,6 +271,7 @@
     </aside>
   </div>
 
+  <script src="/js/depth3d.js"></script>
   <script src="/js/audio.js"></script>
   <script src="/js/particles.js"></script>
   <script src="/js/live.js"></script>

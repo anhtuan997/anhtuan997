@@ -1,0 +1,27 @@
+# systemd (Linux) — thay cho PM2 nếu muốn dùng dịch vụ hệ thống
+#   sudo cp deploy/temple-live.service /etc/systemd/system/
+#   sudo nano /etc/systemd/system/temple-live.service   # sửa User, WorkingDirectory, TIKTOK_USER
+#   sudo systemctl daemon-reload && sudo systemctl enable --now temple-live
+#   journalctl -u temple-live -f                          # xem nhật ký
+[Unit]
+Description=Chua Online TikTok Live RPC (24/7)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=temple
+WorkingDirectory=/opt/tiktok-live-temple-rpc
+ExecStart=/usr/bin/env node server.js
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=TIKTOK_USER=zenfacts_vn
+Restart=always
+RestartSec=5
+# Dừng an toàn: server.js bắt SIGTERM để lưu dữ liệu
+KillSignal=SIGTERM
+TimeoutStopSec=10
+MemoryMax=900M
+
+[Install]
+WantedBy=multi-user.target

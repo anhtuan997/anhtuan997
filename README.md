@@ -11,6 +11,21 @@ Người xem trên TikTok Live tương tác trực tiếp qua **Bình luận (Co
 
 ---
 
+## 🆕 Chế Độ 3D Chân Thực & Vận Hành 24/7
+
+| Nền 3D có chiều sâu (tua nhanh ~18 lần) | Ảnh chụp khung 9:16 |
+| :---: | :---: |
+| ![Parallax 3D](docs/demo/demo-3d-parallax.gif) | ![3D chân thực](docs/demo/demo-3d-realistic.jpg) |
+
+- **Nền WebGL (đồ họa 3D trong trình duyệt)** với bản đồ chiều sâu: camera ảo trôi chậm, vật gần dịch nhiều hơn vật xa ⇒ cảm giác không gian 3D thật. Thêm quầng sáng (bloom), đèn lồng lập lòe, tia sáng tỏa từ hào quang.
+- **Phật tử chân thực hơn**: chỉnh màu theo ánh nến, ánh sáng ngược ở đầu và vai, bóng đổ hắt xuống sàn, phản chiếu trên sàn đá bóng, nhịp thở nhẹ, mỗi người một màu áo.
+- **Chạy 24/7**: tự kết nối lại TikTok, tự khởi động lại giọng đọc, tự dọn bộ đệm, lưu dữ liệu an toàn, `GET /healthz`, cấu hình PM2 / systemd.
+- Tắt 3D cho máy yếu: `http://localhost:3000/?obs=1&fx3d=0`.
+
+👉 Hướng dẫn chi tiết (tham số, cấu hình OBS, lưu ý quy định TikTok): **[docs/LIVE-24-7.md](docs/LIVE-24-7.md)**
+
+---
+
 ## 📸 Hình Ảnh Demo Giao Diện
 
 ### 1. Màn hình Chánh Điện 9:16 & Bảng Điều Khiển Nhanh (`http://localhost:3000`)
@@ -60,6 +75,8 @@ uv pip install --python .venv/bin/python zerotts pillow
 ```
 
 ### 3. Khởi chạy Server
+> Chạy 24/7: `npm i -g pm2 && pm2 start ecosystem.config.cjs` (xem [docs/LIVE-24-7.md](docs/LIVE-24-7.md)).
+
 ```bash
 bun start
 # Hoặc chế độ tự động reload khi sửa code:

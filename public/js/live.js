@@ -24,6 +24,55 @@
   window.addEventListener('resize', fitStage);
   fitStage();
 
+  // 1B. Chế độ 3D chân thực: gắn các lớp HTML vào cùng camera thị sai với nền WebGL
+  const Depth3D = window.Depth3D || {
+    enabled: false,
+    floorDepth: () => 0.5,
+    setLayer() {},
+    flare() {}
+  };
+  // Bóng đổ: nguồn sáng chính là bàn thờ (giữa, phía trước nhân vật) => bóng hắt về phía
+  // người xem và xiên ra ngoài theo khoảng cách so với trục giữa Chánh Điện.
+  function shadowSkewStyle(x) {
+    const skew = Math.max(-38, Math.min(38, ((540 - x) / 540) * 38));
+    return `--shadow-skew: ${skew.toFixed(1)}deg;`;
+  }
+
+  // Đa dạng hoá Đạo Tràng: không ai giống hệt ai (áo lam / áo nâu / áo xám tro, quay trái/phải)
+  const ROBE_TONES = [
+    'brightness(1)',
+    'sepia(0.5) hue-rotate(-12deg) saturate(1.15) brightness(0.92)',
+    'brightness(1)',
+    'saturate(0.35) brightness(0.97)'
+  ];
+  function figureVariant(idx) {
+    const h = (idx * 2654435761) >>> 0; // băm số nguyên đơn giản, cố định theo vị trí ghế
+    return {
+      tone: ROBE_TONES[h % ROBE_TONES.length],
+      flip: ((h >>> 3) & 1) === 1
+    };
+  }
+
+  // Bục gỗ đặt đệm quỳ cao hơn sàn => chiều sâu không nhỏ hơn mặt bục (0.26)
+  const PLATFORM_DEPTH = 0.26;
+  const groundDepthAt = (yStage) => Math.max(PLATFORM_DEPTH, Depth3D.floorDepth(yStage));
+
+  document.querySelectorAll('.depth-wrap[data-depth]').forEach((el) => {
+    Depth3D.setLayer(el.id, el, parseFloat(el.dataset.depth));
+  });
+  // Chủ lễ đi từ cuối thảm đỏ lên bàn thờ => chiều sâu thay đổi theo vị trí chân
+  (function registerCentralLayer() {
+    const layer = document.getElementById('depthCentralLayer');
+    const stack = document.getElementById('centralSpriteStack');
+    if (!layer || !stack) return;
+    Depth3D.setLayer('central', layer, () => {
+      const stageRect = stage9x16.getBoundingClientRect();
+      const k = stageRect.height / 1920 || 1;
+      const footY = (stack.getBoundingClientRect().bottom - stageRect.top) / k;
+      return groundDepthAt(footY);
+    });
+  })();
+
   // 2. Khởi tạo Particle Engine & Audio Engine (ZeroTTS Mai Chi)
   const canvas = document.getElementById('templeCanvas');
   const particles = new window.TempleParticleEngine(canvas);
@@ -97,7 +146,10 @@
       if (!dev) return '';
       return `
         <div class="vip-devotee-slot" style="left: ${slot.x}px; top: ${slot.y}px; z-index: ${12 + idx};">
-          <img src="/assets/devotee.png" alt="VIP Devotee" class="devotee-sprite" />
+          <div class="figure3d" style="animation-delay: -${(idx * 0.9).toFixed(1)}s; ${shadowSkewStyle(slot.x)}">
+            <img src="/assets/3d/devotee.png" alt="" class="figure-shadow" aria-hidden="true" />
+            <img src="/assets/3d/devotee.png" alt="VIP Devotee" class="devotee-sprite${figureVariant(idx + 7).flip ? ' flip' : ''}" style="--robe-tone: ${figureVariant(idx + 7).tone};" />
+          </div>
           <div class="vip-rank-pill">
             <span class="vip-rank-num">${slot.rank}</span>
             <span class="vip-rank-name">${escapeHtml(shortenName(dev.name, 12))}</span>
@@ -105,6 +157,7 @@
         </div>
       `;
     }).join('');
+    Depth3D.setLayer('vip', layer, PLATFORM_DEPTH);
   }
 
   // 5. Dựng Đạo Tràng 40 Phật Tử Quỳ Lễ Hai Bên Thảm Đỏ (5 Hàng x 4 Cột mỗi bên)
@@ -160,7 +213,7 @@
       }
     });
 
-    congregationHall.innerHTML = HALL_SEAT_COORDS.map((seat, idx) => {
+    const seatHtml = HALL_SEAT_COORDS.map((seat, idx) => {
       const viewer = seatViewerMap.get(idx);
       const badgeHtml = viewer
         ? `
@@ -179,30 +232,50 @@
         <div
           class="hall-seat"
           data-seat-idx="${idx}"
-          style="left: ${seat.x}px; top: ${seat.y}px; z-index: ${20 + seat.row * 2}; transform: translate(-50%, -100%) scale(${seat.scale});"
+          style="left: ${seat.x}px; top: ${seat.y}px; transform: translate(-50%, -100%) scale(${seat.scale});"
         >
-          <img
-            src="/assets/devotee.png"
-            alt="Phật tử"
-            class="devotee-sprite"
-            style="animation-delay: ${((idx * 0.27) % 3.5).toFixed(2)}s;"
-          />
+          <div class="figure3d" style="animation-delay: -${((idx * 0.73) % 4.2).toFixed(2)}s; ${shadowSkewStyle(seat.x)}">
+            <img src="/assets/3d/devotee.png" alt="" class="figure-shadow" aria-hidden="true" />
+            <img
+              src="/assets/3d/devotee.png"
+              alt="Phật tử"
+              class="devotee-sprite${figureVariant(idx).flip ? ' flip' : ''}"
+              style="--robe-tone: ${figureVariant(idx).tone};"
+            />
+          </div>
           ${badgeHtml}
         </div>
       `;
-    }).join('');
+    });
+
+    // Mỗi hàng ghế là 1 lớp chiều sâu riêng: hàng xa dịch ít, hàng gần dịch nhiều khi camera trôi.
+    // Hàng xa nhận thêm "phối cảnh không khí" (hơi mờ sương khói, giảm tương phản).
+    const rowCount = Math.max(...HALL_SEAT_COORDS.map((s) => s.row)) + 1;
+    let html = '';
+    for (let r = 0; r < rowCount; r++) {
+      const far = 1 - r / Math.max(1, rowCount - 1); // 1 = hàng xa nhất
+      const haze = `brightness(${(0.9 + 0.1 * (1 - far)).toFixed(3)}) contrast(${(0.9 + 0.1 * (1 - far)).toFixed(3)}) saturate(${(0.88 + 0.12 * (1 - far)).toFixed(3)})`;
+      const seats = HALL_SEAT_COORDS.map((seat, idx) => (seat.row === r ? seatHtml[idx] : '')).join('');
+      html += `<div class="hall-row" data-row="${r}" style="z-index: ${20 + r * 2}; --row-haze: ${haze};">${seats}</div>`;
+    }
+    congregationHall.innerHTML = html;
+    congregationHall.querySelectorAll('.hall-row').forEach((rowEl) => {
+      const r = Number(rowEl.dataset.row);
+      const seat = HALL_SEAT_COORDS.find((s) => s.row === r);
+      Depth3D.setLayer(`hall-row-${r}`, rowEl, Depth3D.floorDepth(seat.y));
+    });
   }
 
   // Preload toàn bộ 8 frame nhân vật vào bộ nhớ để chuyển frame mượt 0ms
   const SPRITE_FRAMES = {
-    walk1: '/assets/devotee_walk.png',
-    walk2: '/assets/devotee_walk_2.png',
-    kneelDown: '/assets/devotee_kneel_down.png',
-    kneel: '/assets/devotee.png',
-    forehead: '/assets/devotee_bow.png',
-    bowMid: '/assets/devotee_bow_mid.png',
-    prostrate: '/assets/devotee_prostrate.png',
-    prostrateDeep: '/assets/devotee_prostrate_deep.png'
+    walk1: '/assets/3d/devotee_walk.png',
+    walk2: '/assets/3d/devotee_walk_2.png',
+    kneelDown: '/assets/3d/devotee_kneel_down.png',
+    kneel: '/assets/3d/devotee.png',
+    forehead: '/assets/3d/devotee_bow.png',
+    bowMid: '/assets/3d/devotee_bow_mid.png',
+    prostrate: '/assets/3d/devotee_prostrate.png',
+    prostrateDeep: '/assets/3d/devotee_prostrate_deep.png'
   };
   Object.values(SPRITE_FRAMES).forEach((url) => {
     const img = new Image();
@@ -214,14 +287,16 @@
     const seats = congregationHall.querySelectorAll('.hall-seat');
     seats.forEach((el, i) => {
       if (i % 4 !== 0) return;
-      const img = el.querySelector('.devotee-sprite');
-      if (!img) return;
+      // Đổi khung hình cho cả nhân vật lẫn bóng đổ của nhân vật
+      const imgs = el.querySelectorAll('img.devotee-sprite, img.figure-shadow');
+      if (!imgs.length) return;
+      const setSrc = (src) => imgs.forEach((img) => { img.src = src; });
       const delay = (i % 4) * 80;
-      setTimeout(() => { img.src = SPRITE_FRAMES.forehead; }, delay);
-      setTimeout(() => { img.src = SPRITE_FRAMES.bowMid; }, delay + 140);
-      setTimeout(() => { img.src = SPRITE_FRAMES.prostrateDeep; }, delay + 300);
-      setTimeout(() => { img.src = SPRITE_FRAMES.bowMid; }, delay + 620);
-      setTimeout(() => { img.src = SPRITE_FRAMES.kneel; }, delay + 780);
+      setTimeout(() => setSrc(SPRITE_FRAMES.forehead), delay);
+      setTimeout(() => setSrc(SPRITE_FRAMES.bowMid), delay + 140);
+      setTimeout(() => setSrc(SPRITE_FRAMES.prostrateDeep), delay + 300);
+      setTimeout(() => setSrc(SPRITE_FRAMES.bowMid), delay + 620);
+      setTimeout(() => setSrc(SPRITE_FRAMES.kneel), delay + 780);
     });
   }
 
@@ -338,6 +413,7 @@
       setTimeout(() => lotusHand.classList.remove('flare'), 3600);
     }
     particles.spawnBellWave(540, 260, 2);
+    Depth3D.flare(0.6);
 
     // Cập nhật dòng thông báo dưới thanh HUD
     const hudName = document.getElementById('devoteeNameLine');
@@ -496,6 +572,7 @@
         pulseHallBowing();
         particles.spawnBellWave(540, 510, 4);
         particles.spawnFloatingMerit(`+${ev.merit} Công Đức`, 190, 935, '#fff3b0');
+        Depth3D.flare(0.85);
         updateCentralWorshipper(ev.user, ev.avatar, `🔔 Thỉnh Đại Hồng Chung (+${ev.merit} CĐ)`, ev.wish);
         break;
       }
@@ -522,6 +599,7 @@
         setTimeout(() => audio.playTempleBell(1.1), 900);
         particles.spawnGrandCeremonyRain();
         pulseHallBowing();
+        Depth3D.flare(1);
         showGrandCeremonyBanner(ev.user, ev.giftName, ev.merit);
         animateWalkerOnCarpet(ev.user, ev.avatar, `🐉 ${ev.giftName} (+${ev.merit} CĐ)`, ev.wish);
         break;
@@ -613,6 +691,7 @@
   // 8. Kết nối JSON-RPC 2.0 WebSocket & Gửi Lệnh RPC
   let ws = null;
   let rpcId = 1;
+  let wsDownSince = 0; // thời điểm bắt đầu mất kết nối WebSocket (0 = đang kết nối tốt)
 
   function connectWebSocket() {
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -621,6 +700,9 @@
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
+        if (msg.method === 'temple.event' || msg.method === 'tts.play') {
+          window.dispatchEvent(new Event('temple-activity'));
+        }
         if (msg.method === 'temple.state') {
           updateUIState(msg.params);
         } else if (msg.method === 'temple.event') {
@@ -637,11 +719,38 @@
       } catch (_) {}
     };
 
+    ws.onopen = () => {
+      wsDownSince = 0;
+    };
+
     ws.onclose = () => {
+      if (!wsDownSince) wsDownSince = Date.now();
       setTimeout(connectWebSocket, 2000);
     };
   }
   connectWebSocket();
+
+  // 24/7 (OBS Browser Source chạy nhiều ngày):
+  //  - Mất kết nối máy chủ quá 90 giây (server khởi động lại, mạng chập chờn) => tải lại trang sạch sẽ
+  //  - Tự tải lại định kỳ (mặc định 12 giờ ở chế độ ?obs=1) để giải phóng bộ nhớ trình duyệt,
+  //    chỉ thực hiện lúc đang yên tĩnh (không có giọng đọc / hiệu ứng). Tắt bằng ?reload=0
+  const reloadHours = parseFloat(params.get('reload') ?? (params.get('obs') === '1' ? '12' : '0'));
+  const bootAt = Date.now();
+  let lastActivityAt = Date.now();
+  window.addEventListener('temple-activity', () => {
+    lastActivityAt = Date.now();
+  });
+  setInterval(() => {
+    if (wsDownSince && Date.now() - wsDownSince > 90 * 1000) {
+      console.warn('[Watchdog] Mất kết nối máy chủ quá lâu, tải lại trang...');
+      window.location.reload();
+      return;
+    }
+    if (reloadHours > 0 && Date.now() - bootAt > reloadHours * 3600 * 1000 && Date.now() - lastActivityAt > 20 * 1000) {
+      console.log('[Watchdog] Tải lại định kỳ để giải phóng bộ nhớ');
+      window.location.reload();
+    }
+  }, 10 * 1000);
 
   async function callRpc(method, params = {}) {
     audio.ensureContext();

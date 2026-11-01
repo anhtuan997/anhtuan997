@@ -5,7 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "bun run server.js",
-    "dev": "bun --watch server.js"
+    "start:node": "node server.js",
+    "dev": "bun --watch server.js",
+    "build:3d": "python3 tools/build_3d_assets.py",
+    "pm2": "pm2 start ecosystem.config.cjs"
   },
   "dependencies": {
     "cors": "^2.8.5",

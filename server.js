@@ -107,6 +107,8 @@ class ZeroTTSManager {
   }
 
   resolvePythonBin() {
+    // Chỉ định Python riêng (vd. môi trường có cài Qwen3-TTS): TTS_PYTHON=/đường/dẫn/python
+    if (process.env.TTS_PYTHON) return process.env.TTS_PYTHON;
     // Linux/macOS: .venv/bin/python • Windows: .venv\Scripts\python.exe
     const candidates = [
       path.join(__dirname, '.venv', 'bin', 'python'),

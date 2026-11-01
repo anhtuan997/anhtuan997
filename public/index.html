@@ -6,7 +6,7 @@
   <title>Chùa Linh Ứng Online — TikTok Live RPC (Đức Phật A Di Đà 9:16)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Noto+Serif:wght@700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Noto+Serif:wght@700;900&family=Noto+Sans+KR:wght@500;700;900&family=Noto+Serif+KR:wght@700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/live.css" />
 </head>
 <body>
@@ -54,12 +54,13 @@
         <header class="minimal-top-bar">
           <div class="live-pill" id="liveStatusPill">
             <span class="live-dot" id="liveDot"></span>
-            <span id="liveStatusText">CHÙA LINH ỨNG • ĐỨC PHẬT A DI ĐÀ</span>
+            <span id="liveStatusText" data-i18n="brand">CHÙA LINH ỨNG • ĐỨC PHẬT A DI ĐÀ</span>
           </div>
           <div class="top-Right-badges">
             <div class="mini-stat-pill">
-              🔥 <strong id="statIncense">108</strong> hương • ✨ <strong id="statMerit">1,080</strong> CĐ
+              🔥 <strong id="statIncense">108</strong> <span data-i18n="unitIncense">hương</span> • ✨ <strong id="statMerit">1,080</strong> <span data-i18n="unitMerit">CĐ</span>
             </div>
+            <div class="mini-stat-pill clock-pill" id="roomClock" hidden></div>
           </div>
         </header>
 
@@ -78,17 +79,17 @@
         <div class="depth-wrap" id="depthHotspotLayer" data-depth="0.23" style="z-index: 15;">
         <div class="ritual-hotspot bell-hotspot" id="bellStation" title="Bấm để Thỉnh Đại Hồng Chung">
           <span class="hotspot-icon">🔔</span>
-          <span class="hotspot-label">Thỉnh Chuông</span>
+          <span class="hotspot-label" data-i18n="hsBell">Thỉnh Chuông</span>
         </div>
 
         <div class="ritual-hotspot woodfish-hotspot" id="woodenFishStation" title="Bấm để Gõ Mõ Tích Công Đức">
           <span class="hotspot-icon">🪵</span>
-          <span class="hotspot-label">Gõ Mõ (<span id="statWoodenFish">360</span>)</span>
+          <span class="hotspot-label"><span data-i18n="hsWoodfish">Gõ Mõ</span> (<span id="statWoodenFish">360</span>)</span>
         </div>
 
         <div class="ritual-hotspot fortune-hotspot" id="fortuneCylinder" title="Bấm để Xin Xăm / Gieo Quẻ">
           <span class="hotspot-icon">🎋</span>
-          <span class="hotspot-label">Xin Xăm</span>
+          <span class="hotspot-label" data-i18n="hsFortune">Xin Xăm</span>
         </div>
         </div>
 
@@ -96,7 +97,7 @@
         <div class="depth-wrap" id="depthCentralLayer" style="z-index: 14;">
         <div class="central-worshipper" id="centralWorshipper">
           <div class="worshipper-wish-bubble" id="centralWishBubble">
-            “Cầu gia đình bình an, vạn sự cát tường như ý”
+            <span data-i18n="defaultWish">“Cầu gia đình bình an, vạn sự cát tường như ý”</span>
           </div>
           <div class="central-sprite-stack figure3d no-reflect" id="centralSpriteStack">
             <img src="/assets/3d/devotee_walk.png" data-pose="walk1" class="devotee-sprite pose-frame" alt="" />
@@ -111,8 +112,8 @@
           <div class="name-tag central-name-tag">
             <div class="tag-avatar" id="centralAvatar">🙏</div>
             <div class="tag-texts">
-              <div class="tag-name" id="centralName">Thí Chủ Minh Tâm</div>
-              <div class="tag-sub" id="centralAction">✨ Dâng hương • +15 Công Đức</div>
+              <div class="tag-name" id="centralName" data-i18n="defaultName">Thí Chủ Minh Tâm</div>
+              <div class="tag-sub" id="centralAction" data-i18n="defaultAction">✨ Dâng hương • +15 Công Đức</div>
             </div>
           </div>
         </div>
@@ -142,34 +143,34 @@
           <div class="hud-left-col">
             <div class="hud-active-notice" id="hudActiveNotice">
               <span class="flower-bullet">💮</span>
-              <strong id="devoteeNameLine">Thí Chủ Minh Tâm</strong>
+              <strong id="devoteeNameLine" data-i18n="defaultName">Thí Chủ Minh Tâm</strong>
               <span>—</span>
-              <span id="devoteeActionTag">Dâng hương cầu bình an</span>
+              <span id="devoteeActionTag" data-i18n="cardIncense">Dâng hương cầu bình an</span>
               <span class="flower-bullet">💮</span>
             </div>
 
             <div class="hud-gift-cards">
               <div class="hud-gift-card" id="cardIncense" title="Bấm để Thắp hương">
-                <div class="gift-coin-tag">1 COIN / CMT</div>
+                <div class="gift-coin-tag" data-i18n="cardIncenseTag">1 COIN / CMT</div>
                 <div class="gift-card-body">
                   <span class="gift-emoji">🔥</span>
-                  <span class="gift-title">Dâng hương</span>
+                  <span class="gift-title" data-i18n="cardIncense">Dâng hương</span>
                 </div>
               </div>
 
               <div class="hud-gift-card" id="cardBlessing" title="Bấm để Cầu phúc & Thả hoa đăng">
-                <div class="gift-coin-tag">5 COINS / TIM</div>
+                <div class="gift-coin-tag" data-i18n="cardBlessingTag">5 COINS / TIM</div>
                 <div class="gift-card-body">
                   <span class="gift-emoji">🏮</span>
-                  <span class="gift-title">Cầu phúc</span>
+                  <span class="gift-title" data-i18n="cardBlessing">Cầu phúc</span>
                 </div>
               </div>
 
               <div class="hud-gift-card" id="cardLotus" title="Bấm để Dâng Hoa Sen Vàng">
-                <div class="gift-coin-tag">10+ COINS</div>
+                <div class="gift-coin-tag" data-i18n="cardLotusTag">10+ COINS</div>
                 <div class="gift-card-body">
                   <span class="gift-emoji">🪷</span>
-                  <span class="gift-title">Hoa sen</span>
+                  <span class="gift-title" data-i18n="cardLotus">Hoa sen</span>
                 </div>
               </div>
             </div>
@@ -177,7 +178,7 @@
 
           <!-- Bên phải: Bảng TẤM LÒNG THÀNH (Top Công Đức) -->
           <div class="hud-right-leaderboard">
-            <div class="hud-lb-header">TẤM LÒNG THÀNH</div>
+            <div class="hud-lb-header" data-i18n="lbHeader">TẤM LÒNG THÀNH</div>
             <div class="hud-lb-list" id="leaderboardList"></div>
           </div>
         </footer>
@@ -271,6 +272,7 @@
     </aside>
   </div>
 
+  <script src="/api/pack.js"></script>
   <script src="/js/depth3d.js"></script>
   <script src="/js/audio.js"></script>
   <script src="/js/particles.js"></script>

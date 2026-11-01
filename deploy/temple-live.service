@@ -16,6 +16,10 @@ ExecStart=/usr/bin/env node server.js
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=TIKTOK_USER=zenfacts_vn
+# Chọn phòng: temple.vi (Chùa tiếng Việt) | temple.ko (Chùa tiếng Hàn) | church.ko (Nhà thờ 3D tiếng Hàn)
+# Muốn chạy nhiều phòng: sao chép file này thành tên khác, đổi PACK, PORT, TIKTOK_USER.
+Environment=PACK=temple.vi
+Environment=IDLE_TALK_MINUTES=5
 Restart=always
 RestartSec=5
 # Dừng an toàn: server.js bắt SIGTERM để lưu dữ liệu

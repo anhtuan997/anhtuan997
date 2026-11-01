@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>24시 기도의 집 · 라이브</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700;800&family=Noto+Sans+KR:wght@500;700;900&family=Noto+Serif+KR:wght@600;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/live.css" />
+  <link rel="stylesheet" href="/css/church.css" />
+</head>
+<body class="room-church lang-ko">
+  <div class="app-workspace">
+    <!-- ====================================================================
+         KHUNG 9:16 (1080 x 1920) — NHÀ THỜ 3D THẬT (Three.js)
+         ==================================================================== -->
+    <div class="stage-wrapper" id="stageWrapper">
+      <div class="stage-9x16" id="stage9x16">
+        <!-- Nền dự phòng khi máy không có WebGL -->
+        <div class="church-fallback-bg"></div>
+        <!-- 1. CẢNH 3D -->
+        <canvas id="church3dCanvas" class="church3d-canvas"></canvas>
+
+        <!-- 2. THẺ TÊN 6 NGƯỜI ỦNG HỘ NHIỀU NHẤT — ngồi hàng ghế đầu, bám theo camera 3D -->
+        <div class="vip-tags-layer" id="vipTagsLayer"></div>
+        <div class="candle-stand-tag" id="candleStandTag">🕯️ <span id="candleCount">0</span>/36</div>
+
+        <!-- 3. THANH TRÊN -->
+        <header class="minimal-top-bar">
+          <div class="live-pill" id="liveStatusPill">
+            <span class="live-dot" id="liveDot"></span>
+            <span id="liveStatusText" data-i18n="brand">24시 기도의 집</span>
+          </div>
+          <div class="top-Right-badges">
+            <div class="mini-stat-pill">
+              🕯️ <strong id="statCandles">0</strong> <span data-i18n="unitCandle">촛불</span>
+              • 🙌 <strong id="statAmen">0</strong> <span data-i18n="unitAmen">아멘</span>
+            </div>
+            <div class="mini-stat-pill clock-pill" id="roomClock" hidden></div>
+          </div>
+        </header>
+        <div class="church-hint" data-i18n="hint">댓글: 기도 · 촛불 · 오늘의 말씀 · 아멘</div>
+
+        <!-- 4. Ý CẦU NGUYỆN BAY LÊN + HIỆU ỨNG 2D -->
+        <div class="sky-lanterns-layer" id="skyLanternsLayer"></div>
+        <canvas id="templeCanvas"></canvas>
+
+        <!-- 5. THANH DƯỚI -->
+        <footer class="bottom-hud-bar">
+          <div class="hud-left-col">
+            <div class="hud-active-notice" id="hudActiveNotice">
+              <span class="flower-bullet">✝</span>
+              <strong id="devoteeNameLine" data-i18n="defaultName">성도님</strong>
+              <span>—</span>
+              <span id="devoteeActionTag" data-i18n="defaultWish">주님의 평안이 함께하시기를</span>
+              <span class="flower-bullet">✝</span>
+            </div>
+            <div class="hud-gift-cards">
+              <div class="hud-gift-card" id="cardCandle">
+                <div class="gift-coin-tag" data-i18n="cardCandleTag">댓글 · 기도</div>
+                <div class="gift-card-body">
+                  <span class="gift-emoji">🕯️</span>
+                  <span class="gift-title" data-i18n="cardCandle">촛불 봉헌</span>
+                </div>
+              </div>
+              <div class="hud-gift-card" id="cardAmen">
+                <div class="gift-coin-tag" data-i18n="cardAmenTag">좋아요 · 아멘</div>
+                <div class="gift-card-body">
+                  <span class="gift-emoji">🙌</span>
+                  <span class="gift-title" data-i18n="cardAmen">아멘</span>
+                </div>
+              </div>
+              <div class="hud-gift-card" id="cardGift">
+                <div class="gift-coin-tag" data-i18n="cardGiftTag">선물 · 감사</div>
+                <div class="gift-card-body">
+                  <span class="gift-emoji">💐</span>
+                  <span class="gift-title" data-i18n="cardGift">감사 예물</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="hud-right-leaderboard">
+            <div class="hud-lb-header" data-i18n="lbHeader">함께 기도한 분들</div>
+            <div class="hud-lb-list" id="leaderboardList"></div>
+          </div>
+        </footer>
+
+        <!-- BĂNG RÔN QUÀ LỚN / GIỜ CẦU NGUYỆN -->
+        <div class="grand-ceremony-banner" id="grandCeremonyBanner">
+          <div class="grand-title" id="grandTitle">✨ 할렐루야 ✨</div>
+          <div class="grand-sub" id="grandSub"></div>
+        </div>
+
+        <!-- THẺ CÂU KINH THÁNH HÔM NAY -->
+        <div class="fortune-modal-overlay" id="verseModal">
+          <div class="fortune-scroll-card verse-card">
+            <div class="fortune-badge" id="verseRef">요한복음 3:16</div>
+            <div class="fortune-heading" id="verseTitle">하나님의 사랑</div>
+            <div class="fortune-devotee" id="verseFor"></div>
+            <div class="fortune-poem" id="verseText"></div>
+            <div class="fortune-meaning" id="verseReflect"></div>
+            <div class="verse-note" data-i18n="verseNote"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================================================================
+         BẢNG ĐIỀU KHIỂN CHO NGƯỜI VẬN HÀNH (tiếng Việt, ẩn khi ?obs=1)
+         ==================================================================== -->
+    <aside class="quick-dock" id="quickDock">
+      <div class="dock-header">
+        <div class="dock-title">⛪ Điều Khiển Phòng Nhà Thờ</div>
+        <a href="/admin" target="_blank" class="dock-link">Admin ↗</a>
+      </div>
+      <div class="dock-section">
+        <div class="dock-section-title">🔊 Âm thanh & Giọng đọc tiếng Hàn</div>
+        <button class="dock-btn gold" id="btnUnlockAudio">🔔 Bật Âm Thanh</button>
+        <div class="dock-grid-2">
+          <button class="dock-btn active-toggle" id="btnToggleTts">🎙️ Giọng Đọc: BẬT</button>
+          <button class="dock-btn active-toggle" id="btnToggleMusic">🎵 Nhạc Nền: BẬT</button>
+        </div>
+        <div class="volume-control-row">
+          <div class="volume-label-line"><span>🎵 Nhạc nền</span><strong id="valMusicVol">65%</strong></div>
+          <input type="range" id="sliderMusicVol" class="volume-slider" min="0" max="100" value="65" />
+        </div>
+        <div class="volume-control-row">
+          <div class="volume-label-line"><span>🎙️ Giọng đọc</span><strong id="valTtsVol">95%</strong></div>
+          <input type="range" id="sliderTtsVol" class="volume-slider" min="0" max="100" value="95" />
+        </div>
+      </div>
+      <div class="dock-section">
+        <div class="dock-section-title">📡 Kết Nối TikTok Live</div>
+        <div class="dock-input-row">
+          <input type="text" id="inputTikTokUser" class="dock-input" placeholder="@username hoặc link TikTok Live" />
+          <button class="dock-btn gold" id="btnConnectTikTok">Kết Nối</button>
+        </div>
+        <button class="dock-btn" id="btnToggleAutoSim">🤖 Giả lập người xem (chỉ để thử): TẮT</button>
+      </div>
+      <div class="dock-section">
+        <div class="dock-section-title">🙏 Thử nghi thức (tên & lời tiếng Hàn)</div>
+        <input type="text" id="inputDevoteeName" class="dock-input" value="김은혜" placeholder="Tên người xem" />
+        <input type="text" id="inputDevoteeWish" class="dock-input" value="가족 모두 건강하고 평안하기를 기도합니다" placeholder="Lời cầu nguyện" />
+        <div class="dock-grid-2">
+          <button class="dock-btn gold" id="btnCandle">🕯️ Thắp 3 nến</button>
+          <button class="dock-btn" id="btnPrayer">🙏 Ý cầu nguyện</button>
+          <button class="dock-btn" id="btnAmen">🙌 Amen (+5)</button>
+          <button class="dock-btn" id="btnBell">🔔 Rung chuông</button>
+          <button class="dock-btn" id="btnVerse">📖 Câu Kinh Thánh</button>
+          <button class="dock-btn" id="btnGift">💐 Quà nhỏ</button>
+          <button class="dock-btn" id="btnAnnounce">🕰️ Thử giờ cầu nguyện</button>
+          <button class="dock-btn" id="btnIdle">📜 Thử đọc khi vắng</button>
+        </div>
+        <button class="dock-btn gold" id="btnGrand">✨ Hallelujah (quà lớn)</button>
+      </div>
+      <div class="dock-section">
+        <div class="dock-section-title">📜 Nhật ký</div>
+        <div class="event-feed" id="eventFeed"></div>
+      </div>
+    </aside>
+  </div>
+
+  <script src="/api/pack.js"></script>
+  <script>
+    // Nhạc nền riêng cho Nhà thờ: đặt file bạn có quyền dùng vào public/assets/bg_church.m4a.
+    // Không có file => tự phát hợp âm đàn organ tổng hợp.
+    window.AUDIO_PROFILE = { bgUrl: '/assets/bg_church.m4a', synth: 'organ' };
+  </script>
+  <script src="/js/audio.js"></script>
+  <script src="/js/particles.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/vendor/three/three.module.js",
+        "three/addons/": "/vendor/three/addons/"
+      }
+    }
+  </script>
+  <script type="module" src="/js/church.js"></script>
+</body>
+</html>

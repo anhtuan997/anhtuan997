@@ -703,7 +703,7 @@ body.obs-mode .stage-wrapper {
   animation: floatLanternUp 9.5s linear forwards;
 }
 .sky-lantern::before {
-  content: '🏮 SỚ CẦU AN';
+  content: var(--lantern-label, '🏮 SỚ CẦU AN');
   display: block;
   font-size: 13px;
   font-weight: 800;
@@ -1239,5 +1239,36 @@ body.fx3d-on .sanctuary-bg-img {
   50% { opacity: 1; }
 }
 body:not(.fx3d-on) .atmo-haze {
+  display: none;
+}
+
+/* ==========================================================================
+   ĐA NGÔN NGỮ (tiếng Hàn): phông chữ có chữ Hàn + đồng hồ giờ địa phương
+   ========================================================================== */
+body.lang-ko {
+  font-family: 'Be Vietnam Pro', 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  word-break: keep-all; /* tiếng Hàn: không ngắt dòng giữa một từ */
+}
+body.lang-ko .fortune-heading,
+body.lang-ko .fortune-poem,
+body.lang-ko .fortune-badge,
+body.lang-ko .grand-title,
+body.lang-ko .hud-lb-header {
+  font-family: 'Noto Serif KR', 'Noto Serif', 'Batang', serif;
+}
+body.lang-ko .fortune-badge {
+  letter-spacing: 0.06em;
+}
+.top-Right-badges {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.clock-pill {
+  font-size: 16px;
+  opacity: 0.92;
+  font-variant-numeric: tabular-nums;
+}
+.clock-pill[hidden] {
   display: none;
 }

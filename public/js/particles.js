@@ -7,7 +7,9 @@
  *   (KHÔNG gọi createRadialGradient, bezierCurveTo hay shadowBlur trong vòng lặp frame!)
  */
 class TempleParticleEngine {
-  constructor(canvas) {
+  // options.petals = false: tắt cánh hoa sen rơi (dùng cho phòng Nhà thờ)
+  constructor(canvas, options = {}) {
+    this.options = { petals: true, ...options };
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d', { alpha: true, desynchronized: true });
     this.width = 1080;
@@ -97,6 +99,7 @@ class TempleParticleEngine {
       });
     }
 
+    if (this.options.petals === false) return;
     for (let i = 0; i < 9; i++) {
       this.lotusPetals.push(this.createLotusPetal(true));
     }

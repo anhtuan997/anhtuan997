@@ -1,0 +1,165 @@
+/* ==========================================================================
+   PHÒNG NHÀ THỜ (기도의 집) — dùng chung khung của live.css, đổi màu & thêm lớp 3D
+   ========================================================================== */
+body.room-church {
+  --gold-bright: #ffe7b0;
+  --gold-main: #e2b866;
+  --ivory: #fffaf0;
+  background: #0b0705;
+}
+
+.church-fallback-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 40% 22% at 50% 30%, rgba(255, 214, 150, 0.55), transparent 70%),
+    radial-gradient(ellipse 70% 50% at 50% 35%, rgba(90, 60, 140, 0.35), transparent 75%),
+    linear-gradient(180deg, #24180f 0%, #3a2618 45%, #1a110b 100%);
+}
+
+.church3d-canvas {
+  position: absolute;
+  inset: 0;
+  width: 1080px;
+  height: 1920px;
+  z-index: 1;
+  display: block;
+}
+body:not(.fx3d-on) .church3d-canvas {
+  display: none;
+}
+
+/* Thẻ tên 6 người ủng hộ nhiều nhất ở hàng ghế đầu (vị trí do camera 3D tính mỗi khung hình) */
+.vip-tags-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+}
+.vip-seat-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 4px;
+  border-radius: 999px;
+  background: rgba(20, 12, 6, 0.82);
+  border: 1.5px solid rgba(255, 220, 150, 0.75);
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff6e0;
+  white-space: nowrap;
+  will-change: transform;
+  box-shadow: 0 0 14px rgba(255, 200, 120, 0.35);
+}
+.vip-rank {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ffe7a8, #c99a3a);
+  color: #3a2208;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.candle-stand-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 8;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(30, 16, 6, 0.78);
+  border: 1.5px solid rgba(255, 190, 110, 0.7);
+  color: #ffe2b5;
+  font-size: 18px;
+  font-weight: 800;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.church-hint {
+  position: absolute;
+  top: 132px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  padding: 7px 20px;
+  border-radius: 999px;
+  background: rgba(16, 10, 6, 0.6);
+  border: 1px solid rgba(255, 231, 176, 0.35);
+  color: #fff3d9;
+  font-size: 19px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Thẻ ý cầu nguyện bay lên: màu trắng ngà – xanh thẫm thay cho đèn lồng đỏ */
+.sky-lantern.prayer-card {
+  background: linear-gradient(180deg, rgba(255, 252, 240, 0.95), rgba(236, 226, 205, 0.92));
+  border-color: #c9a35a;
+  color: #2a1d10;
+}
+.sky-lantern.prayer-card::before {
+  content: var(--prayer-label, '🙏 기도 제목');
+  color: #7a5520;
+}
+.sky-lantern.prayer-card .sky-lantern-user {
+  color: #3a2810;
+}
+.sky-lantern.prayer-card .sky-lantern-wish {
+  color: #4a3720;
+}
+
+/* Thẻ câu Kinh Thánh */
+.verse-card {
+  background: linear-gradient(180deg, #fffdf6 0%, #f3ead6 100%);
+  border-color: #6b4a1f;
+  outline-color: #d9b46a;
+  color: #2a1d10;
+}
+.verse-card .fortune-badge {
+  background: #3b2a14;
+  color: #ffe7b0;
+}
+.verse-card .fortune-heading {
+  color: #3b2a14;
+}
+.verse-card .fortune-devotee {
+  color: #7a5520;
+}
+.verse-card .fortune-poem {
+  color: #1f160b;
+  background: rgba(107, 74, 31, 0.07);
+  border-color: rgba(107, 74, 31, 0.35);
+  font-size: 30px;
+}
+.verse-card .fortune-meaning {
+  color: #3b2a14;
+}
+.verse-note {
+  margin-top: 14px;
+  font-size: 15px;
+  color: rgba(59, 42, 20, 0.6);
+}
+
+/* Băng rôn & khung HUD: tông gỗ – vàng ấm */
+body.room-church .grand-ceremony-banner {
+  top: 700px;
+  background: linear-gradient(135deg, #2b1b0d 0%, #5a3a17 50%, #2b1b0d 100%);
+  border-color: #ffe7b0;
+}
+body.room-church .hud-gift-card,
+body.room-church .hud-right-leaderboard,
+body.room-church .hud-active-notice {
+  background: rgba(20, 13, 8, 0.88);
+}
+body.room-church .flower-bullet {
+  color: #ffe7b0;
+}

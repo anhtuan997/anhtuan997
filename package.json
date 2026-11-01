@@ -1,18 +1,23 @@
 {
   "name": "tiktok-live-temple-rpc",
   "version": "1.0.0",
-  "description": "TikTok Live RPC Interactive Buddhist Temple (Bun.js + ZeroTTS giọng Mai Chi)",
+  "description": "TikTok Live 24/7 tương tác: Chùa (vi/ko) & Nhà thờ 3D (ko) — JSON-RPC, giọng đọc ZeroTTS / edge-tts",
   "main": "server.js",
   "scripts": {
     "start": "bun run server.js",
     "start:node": "node server.js",
     "dev": "bun --watch server.js",
     "build:3d": "python3 tools/build_3d_assets.py",
-    "pm2": "pm2 start ecosystem.config.cjs"
+    "pm2": "pm2 start ecosystem.config.cjs",
+    "start:temple-ko": "node -e \"process.env.PACK='temple.ko';process.env.PORT=process.env.PORT||3001;require('./server.js')\"",
+    "start:church-ko": "node -e \"process.env.PACK='church.ko';process.env.PORT=process.env.PORT||3002;require('./server.js')\"",
+    "setup:tts-ko": "python3 -m venv .venv && .venv/bin/pip install -r requirements-edge.txt",
+    "test": "node --test"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.19.2",
+    "three": "^0.170.0",
     "tiktok-live-connector": "^2.1.0",
     "ws": "^8.18.0"
   }

@@ -11,6 +11,26 @@ Người xem trên TikTok Live tương tác trực tiếp qua **Bình luận (Co
 
 ---
 
+## 🇰🇷 Mới: Phòng tiếng Hàn — Chùa & Nhà thờ 3D thật
+
+| Nhà thờ 3D (`church.ko`) | Câu Kinh Thánh hôm nay | Chùa tiếng Hàn (`temple.ko`) |
+| :---: | :---: | :---: |
+| ![Nhà thờ 3D](docs/demo/demo-church-3d.jpg) | ![Câu Kinh Thánh](docs/demo/demo-church-verse.jpg) | ![Chùa tiếng Hàn](docs/demo/demo-temple-ko.jpg) |
+
+- **Một máy chủ, nhiều phòng**: chọn bằng biến `PACK` = `temple.vi` (mặc định, như cũ) | `temple.ko` | `church.ko`. Mỗi phòng có file dữ liệu riêng, nên chạy song song được (mỗi phòng một tài khoản TikTok).
+- **Nhà thờ 3D thật** (Three.js — thư viện đồ hoạ 3D): ghế gỗ có người ngồi, vòm trần, kính màu, cửa sổ hoa hồng, thập tự phát sáng, giá nến 36 ngọn, tia nắng, bụi lơ lửng, bóng đổ, quầng sáng (*bloom*). Mọi hoạ tiết được vẽ bằng mã, không dùng ảnh của ai.
+- **Giọng đọc tiếng Hàn** `ko-KR-SunHiNeural` (qua `edge-tts`), bình luận tiếng Hàn được hiểu theo từ khoá, có bộ lọc chửi tục tiếng Hàn và trợ từ tiếng Hàn tự chọn đúng.
+- **24/7 theo giờ Seoul**: lịch lễ (chùa: lễ khuya/trưa/chiều; nhà thờ: cầu nguyện rạng sáng, trưa, tối, thờ phượng Chủ nhật), tự đọc lời dạy khi phòng vắng, chào người mới theo dõi.
+
+```bash
+npm install && npm run setup:tts-ko
+npm run start:church-ko        # http://localhost:3002
+npm test                       # kiểm thử tự động
+```
+👉 Hướng dẫn đầy đủ, số liệu tôn giáo Hàn Quốc, quy định TikTok Hàn, lưu ý bản quyền: **[docs/KOREA-24-7.md](docs/KOREA-24-7.md)**
+
+---
+
 ## 🆕 Chế Độ 3D Chân Thực & Vận Hành 24/7
 
 | Nền 3D có chiều sâu (tua nhanh ~18 lần) | Ảnh chụp khung 9:16 |

@@ -7,6 +7,71 @@
  */
 (function () {
   const params = new URLSearchParams(window.location.search);
+
+  // 0. Gói câu chữ của phòng (server nạp qua /api/pack.js). Thiếu khoá nào => dùng tiếng Việt mặc định.
+  const PACK = window.ROOM_PACK || { ui: {}, meta: { numberLocale: 'vi-VN' }, tts: { voice: 'maichi' } };
+  const UI = PACK.ui || {};
+  const NUM_LOCALE = PACK.meta?.numberLocale || 'vi-VN';
+  const DEFAULT_VOICE = PACK.tts?.voice || 'maichi';
+  const fmt = (n) => Number(n || 0).toLocaleString(NUM_LOCALE);
+  // T('actIncense', 'mặc định {count}', { count: 3 }) => thay {biến}
+  function T(key, fallback, vars = {}) {
+    const tpl = UI[key] != null ? String(UI[key]) : fallback;
+    return tpl.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? String(vars[k]) : ''));
+  }
+  if (PACK.meta?.htmlLang) document.documentElement.lang = PACK.meta.htmlLang;
+  if (UI.pageTitle) document.title = UI.pageTitle;
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    const key = el.dataset.i18n;
+    if (UI[key] != null) el.textContent = UI[key];
+  });
+  if (PACK.locale && PACK.locale !== 'vi') document.body.classList.add(`lang-${PACK.locale}`);
+  if (UI.lanternLabel) document.documentElement.style.setProperty('--lantern-label', JSON.stringify(UI.lanternLabel));
+
+  // Đồng hồ theo múi giờ của phòng (vd. Seoul) + buổi lễ kế tiếp — chỉ hiện khi gói có lịch lễ
+  const ROOM_TZ = PACK.meta?.timeZone || undefined;
+  function zonedClock(date = new Date()) {
+    const parts = {};
+    try {
+      new Intl.DateTimeFormat('en-GB', { timeZone: ROOM_TZ, hour12: false, hour: '2-digit', minute: '2-digit', weekday: 'short' })
+        .formatToParts(date)
+        .forEach((p) => (parts[p.type] = p.value));
+    } catch (_) {}
+    const hh = parts.hour === '24' ? '00' : parts.hour || '00';
+    const wd = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[parts.weekday] ?? 0;
+    return { time: `${hh}:${parts.minute || '00'}`, weekday: wd };
+  }
+  function nextScheduleItem() {
+    const list = Array.isArray(PACK.schedule) ? PACK.schedule : [];
+    if (!list.length) return null;
+    const now = zonedClock();
+    const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+    const nowMin = toMin(now.time);
+    let best = null;
+    for (let dayOffset = 0; dayOffset < 8 && !best; dayOffset++) {
+      const wd = (now.weekday + dayOffset) % 7;
+      const candidates = list
+        .filter((it) => !Array.isArray(it.days) || it.days.includes(wd))
+        .filter((it) => dayOffset > 0 || toMin(it.time) > nowMin)
+        .sort((a, b) => toMin(a.time) - toMin(b.time));
+      if (candidates.length) best = candidates[0];
+    }
+    return best;
+  }
+  const clockEl = document.getElementById('roomClock');
+  function renderClock() {
+    if (!clockEl) return;
+    const next = nextScheduleItem();
+    if (!next) {
+      clockEl.hidden = true;
+      return;
+    }
+    clockEl.hidden = false;
+    clockEl.textContent = `🕰 ${T('clockLabel', '')} ${zonedClock().time} · ${next.title} ${next.time}`.replace(/\s+/g, ' ');
+  }
+  renderClock();
+  setInterval(renderClock, 15 * 1000);
+
   if (params.get('obs') === '1') {
     document.body.classList.add('obs-mode');
   }
@@ -379,9 +444,9 @@
     const avatarEl = document.getElementById('centralAvatar');
     const beam = document.getElementById('sacredLightBeam');
 
-    if (nameEl) nameEl.textContent = user || 'Thí Chủ Hữu Duyên';
-    if (actEl) actEl.textContent = actionLabel || '✨ Dâng hương cầu an';
-    if (wishEl) wishEl.textContent = `“${wish || 'Nam Mô A Di Đà Phật, cầu bình an cát tường'}”`;
+    if (nameEl) nameEl.textContent = user || T('defaultName', 'Thí Chủ Hữu Duyên');
+    if (actEl) actEl.textContent = actionLabel || T('defaultAction', '✨ Dâng hương cầu an');
+    if (wishEl) wishEl.textContent = `“${wish || T('defaultWish', 'Nam Mô A Di Đà Phật, cầu bình an cát tường')}”`;
 
     if (avatarEl) {
       if (avatar) {
@@ -418,8 +483,8 @@
     // Cập nhật dòng thông báo dưới thanh HUD
     const hudName = document.getElementById('devoteeNameLine');
     const hudAct = document.getElementById('devoteeActionTag');
-    if (hudName) hudName.textContent = user || 'Thí Chủ';
-    if (hudAct) hudAct.textContent = actionLabel || 'Dâng hương';
+    if (hudName) hudName.textContent = user || T('defaultName', 'Thí Chủ');
+    if (hudAct) hudAct.textContent = actionLabel || T('cardIncense', 'Dâng hương');
   }
 
   // 6. Cập nhật toàn bộ giao diện theo State từ Server
@@ -428,9 +493,9 @@
   function updateUIState(st) {
     if (!st) return;
 
-    document.getElementById('statIncense').textContent = Number(st.totalIncense || 0).toLocaleString('vi-VN');
-    document.getElementById('statMerit').textContent = Number(st.totalMerit || 0).toLocaleString('vi-VN');
-    document.getElementById('statWoodenFish').textContent = Number(st.woodenFishHits || 0).toLocaleString('vi-VN');
+    document.getElementById('statIncense').textContent = fmt(st.totalIncense);
+    document.getElementById('statMerit').textContent = fmt(st.totalMerit);
+    document.getElementById('statWoodenFish').textContent = fmt(st.woodenFishHits);
 
     renderIncenseSticks(st.activeIncenseSticks || 9);
 
@@ -445,8 +510,8 @@
       updateCentralWorshipper(
         topDev.name,
         topDev.avatar,
-        `✨ Công đức: ${Number(topDev.merit).toLocaleString('vi-VN')} CĐ`,
-        topDev.lastWish || 'Nam Mô A Di Đà Phật, cầu bình an cát tường',
+        T('leaderMerit', '✨ Công đức: {n} CĐ', { n: fmt(topDev.merit) }),
+        topDev.lastWish || T('defaultWish', 'Nam Mô A Di Đà Phật, cầu bình an cát tường'),
         false
       );
     }
@@ -461,7 +526,7 @@
           <div class="leader-item">
             <span class="leader-rank">${item.rank}</span>
             <span class="leader-name">${escapeHtml(shortenName(item.name, 14))}</span>
-            <span class="leader-merit">${Number(item.merit).toLocaleString('vi-VN')}</span>
+            <span class="leader-merit">${fmt(item.merit)}</span>
           </div>
         `
         )
@@ -473,15 +538,15 @@
     const liveText = document.getElementById('liveStatusText');
     if (st.tiktok?.connected) {
       liveDot.classList.add('connected');
-      liveText.textContent = `LIVE @${st.tiktok.username} • ${st.tiktok.viewerCount || 0} mắt`;
+      liveText.textContent = T('liveViewers', 'LIVE @{user} • {n} mắt', { user: st.tiktok.username, n: fmt(st.tiktok.viewerCount) });
     } else if (st.tiktok?.connecting) {
       liveDot.classList.remove('connected');
-      liveText.textContent = `Đang kết nối @${st.tiktok.username}...`;
+      liveText.textContent = T('connecting', 'Đang kết nối @{user}...', { user: st.tiktok.username });
     } else {
       liveDot.classList.remove('connected');
       liveText.textContent = st.settings?.autoSim
-        ? 'CHÙA LINH ỨNG • TỰ ĐỘNG GIẢ LẬP ĐÔNG NGƯỜI'
-        : 'CHÙA LINH ỨNG • ĐỨC PHẬT A DI ĐÀ';
+        ? T('brandSim', 'CHÙA LINH ỨNG • TỰ ĐỘNG GIẢ LẬP ĐÔNG NGƯỜI')
+        : T('brand', 'CHÙA LINH ỨNG • ĐỨC PHẬT A DI ĐÀ');
     }
 
     const btnAutoSim = document.getElementById('btnToggleAutoSim');
@@ -535,6 +600,12 @@
         return `🪷 <strong>${escapeHtml(ev.user)}</strong> dâng <em>${escapeHtml(ev.giftName)}</em> (+${ev.merit} CĐ)`;
       case 'drawFortune':
         return `🎋 <strong>${escapeHtml(ev.user)}</strong> gieo được Quẻ số ${ev.fortune?.number} (${ev.fortune?.rank})`;
+      case 'announce':
+        return `🔔 Giờ lễ: <strong>${escapeHtml(ev.title || '')}</strong>`;
+      case 'idleTalk':
+        return `📿 Tự đọc khi phòng vắng${ev.card ? `: ${escapeHtml(ev.card.rank)}` : ''}`;
+      case 'welcome':
+        return `💛 Chào người theo dõi: <strong>${escapeHtml((ev.names || [ev.user]).join(', '))}</strong>`;
       default:
         return `✨ <strong>${escapeHtml(ev.user || 'Thí chủ')}</strong> tương tác`;
     }
@@ -547,23 +618,23 @@
   function triggerRitualVisuals(ev) {
     if (!ev) return;
 
-    if (ev.ttsText && ev.type !== 'drawFortune') {
-      audio.enqueueTts(ev.ttsText, { voice: ev.ttsVoice || 'maichi' });
+    if (ev.ttsText && ev.type !== 'drawFortune' && !(ev.type === 'idleTalk' && ev.card)) {
+      audio.enqueueTts(ev.ttsText, { voice: ev.ttsVoice || DEFAULT_VOICE });
     }
 
     switch (ev.type) {
       case 'burnIncense': {
         audio.playIncenseChime();
         particles.spawnIncenseBurst(540, 895);
-        particles.spawnFloatingMerit(`+${ev.merit} Công Đức`, 540, 860, '#ffe082');
-        animateWalkerOnCarpet(ev.user, ev.avatar, `🔥 Dâng ${ev.count} nén hương (+${ev.merit} CĐ)`, ev.wish);
+        particles.spawnFloatingMerit(T('meritFloat', '+{n} Công Đức', { n: ev.merit }), 540, 860, '#ffe082');
+        animateWalkerOnCarpet(ev.user, ev.avatar, T('actIncense', '🔥 Dâng {count} nén hương (+{merit} CĐ)', ev), ev.wish);
         break;
       }
 
       case 'strikeWoodenFish': {
         audio.playWoodenFish();
         pulseHallBowing();
-        particles.spawnFloatingMerit(`+${ev.merit} Công Đức`, 890, 935, '#ffd54f');
+        particles.spawnFloatingMerit(T('meritFloat', '+{n} Công Đức', { n: ev.merit }), 890, 935, '#ffd54f');
         break;
       }
 
@@ -571,17 +642,17 @@
         audio.playTempleBell(1.0);
         pulseHallBowing();
         particles.spawnBellWave(540, 510, 4);
-        particles.spawnFloatingMerit(`+${ev.merit} Công Đức`, 190, 935, '#fff3b0');
+        particles.spawnFloatingMerit(T('meritFloat', '+{n} Công Đức', { n: ev.merit }), 190, 935, '#fff3b0');
         Depth3D.flare(0.85);
-        updateCentralWorshipper(ev.user, ev.avatar, `🔔 Thỉnh Đại Hồng Chung (+${ev.merit} CĐ)`, ev.wish);
+        updateCentralWorshipper(ev.user, ev.avatar, T('actBell', '🔔 Thỉnh Đại Hồng Chung (+{merit} CĐ)', ev), ev.wish);
         break;
       }
 
       case 'sendPrayer': {
         audio.playIncenseChime();
         spawnSkyLantern(ev.user, ev.wish);
-        particles.spawnFloatingMerit(`+${ev.merit} Công Đức`, 540, 920, '#ffb74d');
-        animateWalkerOnCarpet(ev.user, ev.avatar, `🏮 Cầu phúc (+${ev.merit} CĐ)`, ev.wish);
+        particles.spawnFloatingMerit(T('meritFloat', '+{n} Công Đức', { n: ev.merit }), 540, 920, '#ffb74d');
+        animateWalkerOnCarpet(ev.user, ev.avatar, T('actPrayer', '🏮 Cầu phúc (+{merit} CĐ)', ev), ev.wish);
         break;
       }
 
@@ -589,8 +660,8 @@
         audio.playIncenseChime();
         audio.playTempleBell(0.85);
         particles.spawnIncenseBurst(540, 895);
-        particles.spawnFloatingMerit(`+${ev.merit} Công Đức`, 540, 840, '#fff3b0');
-        animateWalkerOnCarpet(ev.user, ev.avatar, `🪷 Dâng ${ev.giftName} (+${ev.merit} CĐ)`, ev.wish);
+        particles.spawnFloatingMerit(T('meritFloat', '+{n} Công Đức', { n: ev.merit }), 540, 840, '#fff3b0');
+        animateWalkerOnCarpet(ev.user, ev.avatar, T('actGift', '🪷 Dâng {gift} (+{merit} CĐ)', { gift: ev.giftName, merit: ev.merit }), ev.wish);
         break;
       }
 
@@ -601,7 +672,7 @@
         pulseHallBowing();
         Depth3D.flare(1);
         showGrandCeremonyBanner(ev.user, ev.giftName, ev.merit);
-        animateWalkerOnCarpet(ev.user, ev.avatar, `🐉 ${ev.giftName} (+${ev.merit} CĐ)`, ev.wish);
+        animateWalkerOnCarpet(ev.user, ev.avatar, T('actGrand', '🐉 {gift} (+{merit} CĐ)', { gift: ev.giftName, merit: ev.merit }), ev.wish);
         break;
       }
 
@@ -610,20 +681,20 @@
         updateCentralWorshipper(
           ev.user,
           ev.avatar,
-          `🎋 Đang xin xăm...`,
-          `Thí chủ ${ev.user} đang thành tâm xin quẻ...`,
+          T('fortuneDrawing', '🎋 Đang xin xăm...'),
+          T('fortuneDrawingWish', 'Thí chủ {user} đang thành tâm xin quẻ...', { user: ev.user }),
           false
         );
         // Chỉ hiển thị tờ Quẻ Xăm đúng thời điểm giọng đọc bắt đầu vang lên!
         audio.enqueueTts(ev.ttsText || '', {
-          voice: ev.ttsVoice || 'maichi',
+          voice: ev.ttsVoice || DEFAULT_VOICE,
           onStart: () => {
             audio.playIncenseChime();
             showFortuneModal(ev.user, ev.fortune);
             updateCentralWorshipper(
               ev.user,
               ev.avatar,
-              `🎋 Quẻ số ${ev.fortune?.number} (${ev.fortune?.rank})`,
+              T('fortuneResult', '🎋 Quẻ số {number} ({rank})', ev.fortune || {}),
               ev.fortune?.meaning || '',
               true
             );
@@ -634,6 +705,50 @@
               document.getElementById('fortuneModal')?.classList.remove('visible');
             }, 1800);
           }
+        });
+        break;
+      }
+
+      // ---- Sự kiện hệ thống 24/7 (không phải người xem) ----
+      case 'announce': {
+        // Giờ lễ theo lịch: gõ chuông N tiếng, hào quang bừng sáng, băng rôn tên buổi lễ
+        const n = Math.max(1, Math.min(9, ev.bells || 1));
+        for (let i = 0; i < n; i++) {
+          setTimeout(() => {
+            audio.playTempleBell(1.05);
+            particles.spawnBellWave(540, 510, 3);
+            Depth3D.flare(0.7);
+          }, i * 2600);
+        }
+        pulseHallBowing();
+        showGrandCeremonyBanner('', T('scheduleBadge', '🔔 {title}', ev), 0, `${T('clockLabel', '')} ${zonedClock().time}`.trim());
+        break;
+      }
+
+      case 'idleTalk': {
+        if (ev.card) {
+          audio.enqueueTts(ev.ttsText || '', {
+            voice: ev.ttsVoice || DEFAULT_VOICE,
+            onStart: () => {
+              audio.playIncenseChime();
+              showFortuneModal('', ev.card);
+            },
+            onEnd: () => {
+              clearTimeout(fortuneTimer);
+              fortuneTimer = setTimeout(() => {
+                document.getElementById('fortuneModal')?.classList.remove('visible');
+              }, 2500);
+            }
+          });
+        }
+        Depth3D.flare(0.4);
+        break;
+      }
+
+      case 'welcome': {
+        audio.playIncenseChime();
+        (ev.names || [ev.user]).forEach((name, i) => {
+          setTimeout(() => particles.spawnFloatingMerit(`🙏 ${name}`, 260 + i * 280, 980, '#fff3b0'), i * 450);
         });
         break;
       }
@@ -661,10 +776,12 @@
     if (!fortune) return;
     const modal = document.getElementById('fortuneModal');
     document.getElementById('fortuneRankBadge').textContent = fortune.rank.toUpperCase();
-    document.getElementById('fortuneTitle').textContent = `Quẻ Số ${fortune.number} — ${fortune.title}`;
-    document.getElementById('fortuneDevotee').textContent = `Thí chủ cầu quẻ: ${user}`;
+    document.getElementById('fortuneTitle').textContent = T('fortuneTitle', 'Quẻ Số {number} — {title}', fortune);
+    document.getElementById('fortuneDevotee').textContent = user
+      ? T('fortuneDevotee', 'Thí chủ cầu quẻ: {user}', { user })
+      : T('brand', 'CHÙA LINH ỨNG • ĐỨC PHẬT A DI ĐÀ');
     document.getElementById('fortunePoem').textContent = fortune.poem;
-    document.getElementById('fortuneMeaning').textContent = `Lời bàn: ${fortune.meaning}`;
+    document.getElementById('fortuneMeaning').textContent = T('fortuneMeaning', 'Lời bàn: {meaning}', fortune);
 
     modal.classList.add('visible');
     clearTimeout(fortuneTimer);
@@ -677,10 +794,12 @@
     document.getElementById('fortuneModal').classList.remove('visible');
   });
 
-  function showGrandCeremonyBanner(user, giftName, merit) {
+  function showGrandCeremonyBanner(user, giftName, merit, subOverride) {
     const banner = document.getElementById('grandCeremonyBanner');
-    document.getElementById('grandTitle').textContent = `🐉 ${giftName.toUpperCase()} 🐉`;
-    document.getElementById('grandSub').textContent = `Đại Thí Chủ ${user} • Công Đức Vô Lượng (+${merit} CĐ)`;
+    document.getElementById('grandTitle').textContent = subOverride
+      ? String(giftName)
+      : `🐉 ${String(giftName).toUpperCase()} 🐉`;
+    document.getElementById('grandSub').textContent = subOverride || T('grandSub', 'Đại Thí Chủ {user} • Công Đức Vô Lượng (+{merit} CĐ)', { user, merit });
     banner.classList.add('visible');
     clearTimeout(grandTimer);
     grandTimer = setTimeout(() => {
@@ -710,8 +829,8 @@
           if (msg.params?.event) triggerRitualVisuals(msg.params.event);
         } else if (msg.method === 'tts.play') {
           if (msg.params?.url) {
-            audio.enqueueTts(msg.params.text || 'Nam mô A Di Đà Phật', {
-              voice: msg.params.voice || 'maichi',
+            audio.enqueueTts(msg.params.text || T('defaultWish', 'Nam mô A Di Đà Phật'), {
+              voice: msg.params.voice || DEFAULT_VOICE,
               url: msg.params.url
             });
           }

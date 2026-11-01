@@ -22,7 +22,9 @@ class TempleAudioEngine {
 
     this.useSynthMusicFallback = false;
     this.synthBgTimer = null;
-    this.bgAudio = new Audio('/assets/bg_chant.m4a');
+    // Hồ sơ âm thanh theo phòng: Nhà thờ dùng /assets/bg_church.m4a và nhạc nền tổng hợp kiểu đàn organ
+    this.profile = { bgUrl: '/assets/bg_chant.m4a', synth: 'zen', ...(window.AUDIO_PROFILE || {}) };
+    this.bgAudio = new Audio(this.profile.bgUrl);
     this.bgAudio.loop = true;
     this.bgAudio.preload = 'auto';
     this.bgAudio.volume = this.bgBaseVolume;
@@ -108,6 +110,10 @@ class TempleAudioEngine {
 
   startDefaultZenSynthLoop() {
     if (!this.bgMusicEnabled || this.synthBgTimer) return;
+    if (this.profile.synth === 'organ') {
+      this.startOrganPadLoop();
+      return;
+    }
     const PENTATONIC = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25];
     let step = 0;
     const playZenNote = () => {
@@ -140,6 +146,91 @@ class TempleAudioEngine {
     };
     playZenNote();
     this.synthBgTimer = setInterval(playZenNote, 3600);
+  }
+
+  // Nhạc nền dự phòng cho Nhà thờ: hợp âm đàn organ êm (C – Am – F – G), mỗi hợp âm ~8 giây
+  startOrganPadLoop() {
+    const CHORDS = [
+      [130.81, 196.0, 261.63, 329.63], // C
+      [110.0, 164.81, 220.0, 261.63], // Am
+      [87.31, 174.61, 220.0, 261.63], // F
+      [98.0, 146.83, 196.0, 246.94] // G
+    ];
+    let step = 0;
+    const playChord = () => {
+      if (!this.bgMusicEnabled || !this.ctx) return;
+      try {
+        const now = this.ctx.currentTime;
+        const vol = (this.ttsPlaying ? this.getDuckedVolume() : this.bgBaseVolume) * 0.06;
+        if (vol <= 0.001) return;
+        const chord = CHORDS[step % CHORDS.length];
+        step++;
+        const master = this.ctx.createGain();
+        const lp = this.ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = 1400;
+        master.gain.setValueAtTime(0.0001, now);
+        master.gain.linearRampToValueAtTime(vol, now + 2.2);
+        master.gain.setValueAtTime(vol, now + 6.4);
+        master.gain.exponentialRampToValueAtTime(0.0001, now + 9.6);
+        master.connect(lp);
+        lp.connect(this.ctx.destination);
+        const oscs = [];
+        chord.forEach((f, i) => {
+          // Mỗi nốt = sóng sin + sóng tam giác lệch nhẹ (tiếng ống organ ấm, không chói)
+          [['sine', 0], ['triangle', 2.5]].forEach(([type, detune]) => {
+            const o = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            o.type = type;
+            o.frequency.value = f;
+            o.detune.value = detune + (i % 2 ? -1.5 : 1.5);
+            g.gain.value = type === 'sine' ? 0.6 : 0.25;
+            o.connect(g);
+            g.connect(master);
+            o.start(now);
+            o.stop(now + 9.8);
+            oscs.push(o, g);
+          });
+        });
+        setTimeout(() => {
+          oscs.forEach((n) => n.disconnect());
+          master.disconnect();
+          lp.disconnect();
+        }, 10500);
+      } catch (_) {}
+    };
+    playChord();
+    this.synthBgTimer = setInterval(playChord, 8000);
+  }
+
+  // Hợp âm "Hallelujah" rộn ràng cho quà lớn (C trưởng, 3 quãng tám)
+  playHallelujahChord() {
+    if (!this.sfxEnabled) return;
+    try {
+      const ctx = this.ensureContext();
+      const now = ctx.currentTime;
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.0001, now);
+      master.gain.linearRampToValueAtTime(0.16, now + 0.5);
+      master.gain.exponentialRampToValueAtTime(0.0001, now + 5.5);
+      master.connect(ctx.destination);
+      [261.63, 329.63, 392.0, 523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = i < 3 ? 'triangle' : 'sine';
+        o.frequency.value = f;
+        g.gain.value = 0.22 / (1 + i * 0.25);
+        o.connect(g);
+        g.connect(master);
+        o.start(now + i * 0.06);
+        o.stop(now + 5.6);
+        o.onended = () => {
+          o.disconnect();
+          g.disconnect();
+        };
+      });
+      setTimeout(() => master.disconnect(), 6000);
+    } catch (_) {}
   }
 
   stopZenAmbience() {
@@ -318,7 +409,7 @@ class TempleAudioEngine {
     const item = {
       id: `tts_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       text: clean,
-      voice: (options.voice || this.ttsVoice || 'maichi').toLowerCase(),
+      voice: String(options.voice || window.ROOM_PACK?.tts?.voice || this.ttsVoice || 'maichi'),
       url: options.url || null,
       onStart,
       onEnd,
@@ -372,6 +463,8 @@ class TempleAudioEngine {
         if (item.onStart) item.onStart();
         await this.playWavUrl(audioUrl);
         if (item.onEnd) item.onEnd();
+      } else if (await this.speakWithBrowser(item)) {
+        // Máy chủ không tạo được giọng (mất mạng, chưa cài edge-tts...) => đã đọc bằng giọng có sẵn của trình duyệt
       } else {
         if (item.onStart) item.onStart();
         if (item.onEnd) setTimeout(item.onEnd, 5500);
@@ -391,6 +484,41 @@ class TempleAudioEngine {
         setTimeout(() => this.processTtsQueue(), 250);
       }
     }
+  }
+
+  // Dự phòng: đọc bằng giọng hệ điều hành (Windows có giọng Hàn "Heami" nếu cài gói tiếng Hàn).
+  // Trả về false nếu trình duyệt không có giọng đúng ngôn ngữ => giữ im lặng như trước.
+  speakWithBrowser(item) {
+    return new Promise((resolve) => {
+      try {
+        const synth = window.speechSynthesis;
+        const lang = window.ROOM_PACK?.tts?.browserLang;
+        if (!synth || !lang || typeof SpeechSynthesisUtterance === 'undefined') return resolve(false);
+        const prefix = lang.slice(0, 2).toLowerCase();
+        const voice = synth.getVoices().find((v) => String(v.lang || '').toLowerCase().startsWith(prefix));
+        if (!voice) return resolve(false);
+        const u = new SpeechSynthesisUtterance(item.text);
+        u.voice = voice;
+        u.lang = voice.lang;
+        u.rate = 0.95;
+        u.volume = this.ttsVolume;
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          if (item.onEnd) item.onEnd();
+          resolve(true);
+        };
+        u.onend = finish;
+        u.onerror = finish;
+        this.setBgDucking(true);
+        if (item.onStart) item.onStart();
+        synth.speak(u);
+        setTimeout(finish, 30000); // chốt an toàn nếu trình duyệt không báo kết thúc
+      } catch (_) {
+        resolve(false);
+      }
+    });
   }
 
   playWavUrl(url) {

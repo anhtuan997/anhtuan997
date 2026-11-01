@@ -1,0 +1,2 @@
+# Giọng đọc tiếng Hàn (và các ngôn ngữ khác) qua dịch vụ giọng thần kinh của Microsoft — cần Internet
+edge-tts>=7.0

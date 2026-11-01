@@ -1,98 +1,65 @@
 /**
- * PM2 — trình quản lý tiến trình giữ máy chủ chạy 24/7
+ * PM2 — giữ phòng live chạy 24/7.
  *   npm i -g pm2
- *   pm2 start ecosystem.config.cjs --only church-ko      # chỉ chạy phòng Nhà thờ tiếng Hàn
- *   pm2 start ecosystem.config.cjs --only temple-ko,church-ko
- *   pm2 start ecosystem.config.cjs                       # chạy cả 3 phòng
- *   pm2 save && pm2 startup     # tự chạy lại khi khởi động máy
+ *   pm2 start ecosystem.config.cjs
+ *   pm2 save && pm2 startup     # tự chạy lại khi bật máy (macOS: chạy lệnh sudo mà nó in ra)
  *   pm2 logs church-ko          # xem nhật ký
  *
- * MỖI PHÒNG = 1 tài khoản TikTok riêng + 1 cổng riêng + 1 cảnh OBS riêng.
- * Sửa TIKTOK_USER của từng phòng trước khi chạy.
+ * Hiện TẬP TRUNG 1 PHÒNG: Nhà thờ tiếng Hàn (24시 기도의 집) — cảnh 3D, cổng 3002.
+ * Muốn đổi sang Chùa tiếng Hàn: sửa PACK thành 'temple.ko' (mã 2 phòng còn lại vẫn giữ nguyên).
+ *
+ * GIỌNG ĐỌC — chọn bằng biến môi trường TTS_ENGINE trước khi chạy pm2:
+ *  local — Qwen3-TTS chạy NGAY TRÊN MÁY (miễn phí, không cần Internet; hợp Mac M1/M2/M3).
+ *          Cài: npm run setup:tts-local. Giọng: voice-ref/ (giọng riêng của dự án) hoặc Sohee có sẵn.
+ *  vibi  — cần thêm VIBI_API_KEY (trả phí theo ký tự). KHÔNG ghi khoá vào file này.
+ *  edge  — giọng Microsoft miễn phí (cần Internet). Mặc định khi không chọn gì.
  */
-const common = {
-  script: 'server.js',
-  // Muốn chạy bằng Bun thì bỏ chú thích dòng dưới (Node.js >= 18 cũng chạy tốt)
-  // interpreter: 'bun',
-  cwd: __dirname,
-  autorestart: true,
-  // Khởi động lại với độ trễ tăng dần nếu bị lỗi liên tục (tránh vòng lặp crash)
-  exp_backoff_restart_delay: 2000,
-  // Rò rỉ bộ nhớ sau nhiều ngày => tự khởi động lại khi vượt ngưỡng
-  max_memory_restart: '700M',
-  kill_timeout: 5000, // đủ thời gian lưu Bảng xếp hạng khi tắt
-  time: true
-};
-
-// Giọng Vibi (vibi.pro — trả phí theo ký tự). Giọng đã chọn: SUNNY (ElevenLabs, nữ, ấm, điềm tĩnh)
-// cho CẢ 3 phòng. Chỉ cần đặt khoá API bằng biến môi trường TRƯỚC khi chạy pm2
-// (KHÔNG ghi khoá vào file này để tránh lộ khi đẩy lên GitHub):
-//   macOS/Linux:  export VIBI_API_KEY=...        Windows cmd:  set VIBI_API_KEY=...
-// Chưa đặt VIBI_API_KEY => phòng dùng giọng miễn phí như cũ (ZeroTTS Mai Chi / edge-tts SunHi).
-// Đổi giọng: đặt thêm VIBI_VOICE_ID (tìm bằng: npm run vibi:voices -- --lang ko)
 const SUNNY = '4p0HBzAAGyju0nYfNntV';
-function vibiEnv(language, model) {
-  if (!process.env.VIBI_API_KEY) return {};
-  return {
-    TTS_ENGINE: 'vibi',
-    VIBI_API_KEY: process.env.VIBI_API_KEY,
-    VIBI_VOICE_ID: process.env.VIBI_VOICE_ID || SUNNY,
-    VIBI_PROVIDER: process.env.VIBI_PROVIDER || 'elevenlabs',
-    VIBI_LANGUAGE: language,
-    // Mẫu giọng: tiếng Hàn dùng eleven_multilingual_v2 (đúng bản đã nghe thử);
-    // tiếng Việt cần eleven_v4 vì multilingual_v2 KHÔNG có tiếng Việt
-    VIBI_MODEL: model,
-    VIBI_DAILY_CHAR_LIMIT: process.env.VIBI_DAILY_CHAR_LIMIT || 30000 // hết hạn mức => tự dùng giọng miễn phí
-  };
-}
 
-const commonEnv = {
-  NODE_ENV: 'production',
-  MAX_DEVOTEES: 5000,
-  TTS_CACHE_MAX_AGE_HOURS: 24,
-  TTS_CACHE_MAX_FILES: 3000
-};
+function ttsEnv() {
+  const engine = process.env.TTS_ENGINE || (process.env.VIBI_API_KEY ? 'vibi' : 'edge');
+  if (engine === 'local') {
+    return {
+      TTS_ENGINE: 'local',
+      QWEN_TTS_MODE: process.env.QWEN_TTS_MODE || 'clone', // clone: giọng trong voice-ref/ | speaker: Sohee
+      QWEN_TTS_DEVICE: process.env.QWEN_TTS_DEVICE || 'auto' // auto: mps trên Mac, cuda nếu có, không thì cpu
+    };
+  }
+  if (engine === 'vibi' && process.env.VIBI_API_KEY) {
+    return {
+      TTS_ENGINE: 'vibi',
+      VIBI_API_KEY: process.env.VIBI_API_KEY,
+      VIBI_VOICE_ID: process.env.VIBI_VOICE_ID || SUNNY,
+      VIBI_PROVIDER: process.env.VIBI_PROVIDER || 'elevenlabs',
+      VIBI_LANGUAGE: 'ko',
+      VIBI_MODEL: 'eleven_multilingual_v2',
+      VIBI_DAILY_CHAR_LIMIT: process.env.VIBI_DAILY_CHAR_LIMIT || 30000
+    };
+  }
+  return { TTS_ENGINE: 'edge' };
+}
 
 module.exports = {
   apps: [
     {
-      // Chùa tiếng Việt (bản gốc) — giọng ZeroTTS Mai Chi, chạy offline
-      ...common,
-      name: 'temple-live',
-      env: {
-        ...commonEnv,
-        PACK: 'temple.vi',
-        PORT: 3000,
-        TIKTOK_USER: 'zenfacts_vn',
-        IDLE_TALK_MINUTES: 5,
-        ...vibiEnv('vi', 'eleven_v4')
-      }
-    },
-    {
-      // Chùa tiếng Hàn (온라인 법당) — giọng edge-tts ko-KR-SunHiNeural (cần Internet)
-      ...common,
-      name: 'temple-ko',
-      env: {
-        ...commonEnv,
-        PACK: 'temple.ko',
-        PORT: 3001,
-        TIKTOK_USER: 'tai_khoan_chua_han', // <== SỬA
-        IDLE_TALK_MINUTES: 5, // phòng vắng 5 phút => tự đọc 1 lời Phật dạy (0 = tắt)
-        ...vibiEnv('ko', 'eleven_multilingual_v2')
-      }
-    },
-    {
-      // Nhà thờ tiếng Hàn (24시 기도의 집) — cảnh 3D Three.js, giọng edge-tts
-      ...common,
       name: 'church-ko',
+      script: 'server.js',
+      cwd: __dirname,
+      autorestart: true,
+      exp_backoff_restart_delay: 2000, // lỗi liên tục => chờ lâu dần, tránh vòng lặp crash
+      max_memory_restart: '900M', // chỉ tính tiến trình Node; mô hình giọng chạy ở tiến trình Python riêng
+      kill_timeout: 8000, // đủ thời gian lưu dữ liệu và tắt mô hình giọng
+      time: true,
       env: {
-        ...commonEnv,
+        NODE_ENV: 'production',
         PACK: 'church.ko',
         PORT: 3002,
-        TIKTOK_USER: 'tai_khoan_nha_tho_han', // <== SỬA
+        TIKTOK_USER: 'tai_khoan_nha_tho_han', // <== SỬA thành tài khoản TikTok của bạn
         IDLE_TALK_MINUTES: 5,
-        // TTS_VOICE: 'ko-KR-InJoonNeural',    // giọng nam (mặc định: giọng nữ SunHi)
-        ...vibiEnv('ko', 'eleven_multilingual_v2')
+        MAX_DEVOTEES: 5000,
+        TTS_CACHE_MAX_AGE_HOURS: 24,
+        TTS_CACHE_MAX_FILES: 3000,
+        ...ttsEnv()
       }
     }
   ]

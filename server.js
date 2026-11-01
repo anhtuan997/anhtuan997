@@ -33,14 +33,26 @@ const FORTUNE_DECK = PACK.deck;
 //    - vibi   : API Vibi (giọng ElevenLabs / MiniMax / CapCut, trả phí theo ký tự) — tts_worker_vibi.py
 //    Chọn bằng TTS_ENGINE=zerotts|edge|vibi (mặc định theo gói phòng). Các worker dùng chung 1 giao thức JSON.
 // ============================================================================
-const TTS_WORKERS = { zerotts: 'tts_worker.py', edge: 'tts_worker_edge.py', vibi: 'tts_worker_vibi.py' };
+//    - local  : Qwen3-TTS chạy ngay trên máy (miễn phí, offline, hợp Mac M1) — tts_worker_local.py
+const TTS_WORKERS = {
+  zerotts: 'tts_worker.py',
+  edge: 'tts_worker_edge.py',
+  vibi: 'tts_worker_vibi.py',
+  local: 'tts_worker_local.py'
+};
 const TTS_ENGINE = (() => {
   const e = String(process.env.TTS_ENGINE || PACK.tts.engine || 'zerotts').toLowerCase();
   return TTS_WORKERS[e] ? e : 'zerotts';
 })();
 // Vibi: 1 giọng cố định cho cả phòng (VIBI_VOICE_ID). Dự phòng edge-tts dùng giọng của gói phòng.
 const TTS_DEFAULT_VOICE =
-  TTS_ENGINE === 'vibi' ? process.env.VIBI_VOICE_ID || 'vibi' : process.env.TTS_VOICE || PACK.tts.voice || 'maichi';
+  TTS_ENGINE === 'vibi'
+    ? process.env.VIBI_VOICE_ID || 'vibi'
+    : TTS_ENGINE === 'local'
+      ? 'qwen3-local'
+      : process.env.TTS_VOICE || PACK.tts.voice || 'maichi';
+// Mô hình chạy trên máy cần thời gian nạp và mỗi câu lâu hơn (nhất là máy không có GPU)
+const TTS_TIMEOUT_MS = Number(process.env.TTS_TIMEOUT_MS) || (TTS_ENGINE === 'local' ? 120000 : 30000);
 
 function isEdgeVoice(v) {
   return /^[a-z]{2,3}-[a-z]{2,4}-[a-z]+neural$/i.test(String(v || ''));
@@ -49,7 +61,7 @@ function isEdgeVoice(v) {
 // Giọng đang dùng: lấy từ cài đặt nếu hợp với bộ máy đọc hiện tại, không thì dùng giọng mặc định của gói
 function currentVoice() {
   const v = state?.settings?.ttsVoice;
-  if (!v || TTS_ENGINE === 'vibi') return TTS_DEFAULT_VOICE;
+  if (!v || TTS_ENGINE === 'vibi' || TTS_ENGINE === 'local') return TTS_DEFAULT_VOICE;
   if (TTS_ENGINE === 'edge') return isEdgeVoice(v) ? v : TTS_DEFAULT_VOICE;
   return isEdgeVoice(v) ? TTS_DEFAULT_VOICE : v;
 }
@@ -62,7 +74,7 @@ class ZeroTTSManager {
     this.engine = TTS_ENGINE;
     this.voice = TTS_DEFAULT_VOICE;
     this.voices = [TTS_DEFAULT_VOICE];
-    this.model = { edge: 'edge-tts', vibi: 'vibi.pro', zerotts: 'zeroweight-ai/ZeroTTS' }[TTS_ENGINE];
+    this.model = { edge: 'edge-tts', vibi: 'vibi.pro', zerotts: 'zeroweight-ai/ZeroTTS', local: 'Qwen3-TTS' }[TTS_ENGINE];
     this.pending = new Map();
     this.inflight = new Map();
     this.reqCounter = 0;
@@ -195,6 +207,7 @@ class ZeroTTSManager {
       engine: {
         edge: 'edge-tts (Microsoft Neural)',
         vibi: `Vibi (${process.env.VIBI_PROVIDER || 'elevenlabs'})`,
+        local: 'Qwen3-TTS (chạy trên máy)',
         zerotts: 'ZeroTTS (zeroweight-ai/ZeroTTS)'
       }[this.engine],
       voice: currentVoice(),
@@ -222,8 +235,8 @@ class ZeroTTSManager {
       const id = ++this.reqCounter;
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        resolve({ ok: false, error: 'ZeroTTS synthesis timeout' });
-      }, 30000);
+        resolve({ ok: false, error: 'TTS synthesis timeout' });
+      }, TTS_TIMEOUT_MS);
 
       this.pending.set(id, { resolve, timer });
       const payload = JSON.stringify({ id, text: cleanText, voice }) + '\n';

@@ -15,7 +15,10 @@
     "test": "node --test",
     "pregen": "node tools/pregen.js",
     "pregen:save": "node tools/pregen.js --save",
-    "vibi:voices": "node tools/vibi-voices.js"
+    "vibi:voices": "node tools/vibi-voices.js",
+    "setup:tts-local": "python3 -m venv .venv && .venv/bin/pip install -U qwen-tts edge-tts soundfile",
+    "voice:design": ".venv/bin/python tools/design_voice.py",
+    "start:local": "node -e \"process.env.PACK='church.ko';process.env.TTS_ENGINE='local';process.env.PORT=process.env.PORT||3002;require('./server.js')\""
   },
   "dependencies": {
     "cors": "^2.8.5",

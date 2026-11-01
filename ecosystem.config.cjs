@@ -24,6 +24,24 @@ const common = {
   time: true
 };
 
+// Giọng Vibi (vibi.pro — ElevenLabs/MiniMax/CapCut, trả phí). Bật bằng cách đặt biến môi trường
+// TRƯỚC khi chạy pm2 (KHÔNG ghi khoá vào file này để tránh lộ khi đẩy lên GitHub):
+//   Linux/macOS:  export VIBI_API_KEY=...  VIBI_VOICE_ID=...  VIBI_PROVIDER=elevenlabs
+//   Windows cmd:  set VIBI_API_KEY=...  &  set VIBI_VOICE_ID=...
+// Chưa đặt VIBI_API_KEY => phòng dùng giọng miễn phí edge-tts như cũ.
+// Tìm giọng: node tools/vibi-voices.js --lang ko --gender female
+function vibiEnv(defaultLang) {
+  if (!process.env.VIBI_API_KEY || !process.env.VIBI_VOICE_ID) return {};
+  return {
+    TTS_ENGINE: 'vibi',
+    VIBI_API_KEY: process.env.VIBI_API_KEY,
+    VIBI_VOICE_ID: process.env.VIBI_VOICE_ID,
+    VIBI_PROVIDER: process.env.VIBI_PROVIDER || 'elevenlabs',
+    VIBI_LANGUAGE: process.env.VIBI_LANGUAGE || (process.env.VIBI_PROVIDER === 'minimax' ? 'Korean' : defaultLang),
+    VIBI_DAILY_CHAR_LIMIT: process.env.VIBI_DAILY_CHAR_LIMIT || 30000 // hết hạn mức => tự dùng edge-tts miễn phí
+  };
+}
+
 const commonEnv = {
   NODE_ENV: 'production',
   MAX_DEVOTEES: 5000,
@@ -48,7 +66,8 @@ module.exports = {
         PACK: 'temple.ko',
         PORT: 3001,
         TIKTOK_USER: 'tai_khoan_chua_han', // <== SỬA
-        IDLE_TALK_MINUTES: 5 // phòng vắng 5 phút => tự đọc 1 lời Phật dạy (0 = tắt)
+        IDLE_TALK_MINUTES: 5, // phòng vắng 5 phút => tự đọc 1 lời Phật dạy (0 = tắt)
+        ...vibiEnv('ko')
       }
     },
     {
@@ -60,8 +79,9 @@ module.exports = {
         PACK: 'church.ko',
         PORT: 3002,
         TIKTOK_USER: 'tai_khoan_nha_tho_han', // <== SỬA
-        IDLE_TALK_MINUTES: 5
+        IDLE_TALK_MINUTES: 5,
         // TTS_VOICE: 'ko-KR-InJoonNeural',    // giọng nam (mặc định: giọng nữ SunHi)
+        ...vibiEnv('ko')
       }
     }
   ]

@@ -129,6 +129,63 @@ pm2 save && pm2 startup
 
 ---
 
+## 5B. Giọng nữ cao cấp qua Vibi (vibi.pro) — tuỳ chọn, trả phí
+
+[Vibi](https://vibi.pro) bán lại giọng của **ElevenLabs**, **MiniMax** và **CapCut** qua một API chung. Giọng ElevenLabs/MiniMax tự nhiên và có cảm xúc hơn hẳn giọng Microsoft miễn phí.
+
+| Nhà cung cấp | Tiếng Hàn | Tiếng Việt | Ghi chú |
+| :--- | :---: | :---: | :--- |
+| ElevenLabs | ✅ | ✅ | Thư viện giọng cộng đồng rất lớn, lọc theo giới tính / tuổi / ngôn ngữ |
+| MiniMax | ✅ | ✅ | Có giọng hệ thống tiếng Hàn |
+| CapCut | ❌ | ✅ | Giọng quen thuộc trên TikTok Việt; **không có tiếng Hàn** |
+
+### Bước 1 — Lấy khoá API
+Đăng nhập vibi.pro → **Tài liệu API** (*API Docs*) → sao chép **API Key**. **Đừng** dán khoá vào file nào rồi đẩy lên GitHub.
+
+### Bước 2 — Tìm giọng nữ hay và nghe thử
+```bash
+# Linux/macOS
+export VIBI_API_KEY=khoá_của_bạn
+node tools/vibi-voices.js --lang ko --gender female      # giọng nữ tiếng Hàn
+node tools/vibi-voices.js --lang vi --gender female      # giọng nữ tiếng Việt
+# Windows (cmd):  set VIBI_API_KEY=khoá_của_bạn   rồi chạy lệnh node như trên
+```
+Lệnh in bảng giọng (ElevenLabs xếp theo lượt được dùng lại — càng cao càng được ưa chuộng) và tạo trang **`data/vibi-voices.html`**: mở bằng trình duyệt, bấm ▶ nghe thử từng giọng, cột cuối có sẵn dòng cấu hình.
+
+Nghe thử chính câu sẽ phát trên live (tốn vài credit):
+```bash
+node tools/vibi-voices.js --say "김은혜님, 촛불을 밝혀 주셔서 감사합니다." --voice <voice_id> --provider elevenlabs
+```
+→ file `data/vibi-sample-....mp3`.
+
+### Bước 3 — Bật cho phòng
+```bash
+export VIBI_API_KEY=khoá_của_bạn
+export VIBI_VOICE_ID=<voice_id đã chọn>
+export VIBI_PROVIDER=elevenlabs        # hoặc minimax
+pm2 start ecosystem.config.cjs --only church-ko,temple-ko --update-env
+```
+Hoặc chạy thử 1 phòng: `TTS_ENGINE=vibi VIBI_API_KEY=... VIBI_VOICE_ID=... npm run start:church-ko`.
+
+### An toàn chi phí khi chạy 24/7
+- Mỗi câu đọc **tốn credit theo số ký tự**. Câu đã đọc được lưu đệm, đọc lại không tốn thêm.
+- `VIBI_DAILY_CHAR_LIMIT` (mặc định **30.000 ký tự/ngày**): vượt hạn mức, **hết credit**, sai khoá hoặc Vibi lỗi ⇒ **tự chuyển sang giọng Microsoft miễn phí** (cần đã cài `edge-tts`), live không bị câm.
+- Số ký tự đã dùng hôm nay: `data/vibi-usage.json`.
+- Tham khảo: một phòng đông tương tác có thể đọc 300–600 câu/giờ (~50 ký tự/câu) ⇒ 15.000–30.000 ký tự/giờ. Đặt hạn mức theo ngân sách của bạn.
+
+| Biến | Mặc định | Ý nghĩa |
+| :--- | :---: | :--- |
+| `TTS_ENGINE=vibi` | — | Bật Vibi (PM2 tự bật khi có `VIBI_API_KEY` + `VIBI_VOICE_ID`) |
+| `VIBI_PROVIDER` | `elevenlabs` | `elevenlabs` / `minimax` / `capcut` |
+| `VIBI_LANGUAGE` | `ko` | ElevenLabs/CapCut: `ko`, `vi`. MiniMax: `Korean`, `Vietnamese` |
+| `VIBI_SPEED` | `1.0` | Tốc độ đọc |
+| `VIBI_STABILITY` / `VIBI_SIMILARITY` | `0.5` / `0.75` | [ElevenLabs] độ ổn định / độ giống giọng gốc |
+| `VIBI_DAILY_CHAR_LIMIT` | `30000` | Hạn mức ký tự mỗi ngày (`0` = không giới hạn) |
+
+> Lưu ý bản quyền giọng: giọng trong thư viện cộng đồng ElevenLabs do người khác tạo; một số giọng có điều khoản riêng. Hãy đọc điều khoản sử dụng thương mại của Vibi / ElevenLabs trước khi phát kiếm tiền.
+
+---
+
 ## 6. OBS cho phòng Nhà thờ 3D
 
 - Nguồn trình duyệt (*Browser Source*): `http://localhost:3002/?obs=1`, kích thước `1080 × 1920`, 30 khung hình/giây (*FPS*).

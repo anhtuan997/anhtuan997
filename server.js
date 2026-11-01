@@ -30,10 +30,17 @@ const FORTUNE_DECK = PACK.deck;
 // 2. TTS PYTHON WORKER MANAGER
 //    - zerotts: ZeroTTS chạy offline, giọng Mai Chi (tiếng Việt) — tts_worker.py
 //    - edge   : giọng thần kinh Microsoft qua edge-tts (tiếng Hàn & nhiều ngôn ngữ, cần Internet) — tts_worker_edge.py
-//    Chọn bằng TTS_ENGINE=zerotts|edge (mặc định theo gói phòng). Hai worker dùng chung 1 giao thức JSON.
+//    - vibi   : API Vibi (giọng ElevenLabs / MiniMax / CapCut, trả phí theo ký tự) — tts_worker_vibi.py
+//    Chọn bằng TTS_ENGINE=zerotts|edge|vibi (mặc định theo gói phòng). Các worker dùng chung 1 giao thức JSON.
 // ============================================================================
-const TTS_ENGINE = String(process.env.TTS_ENGINE || PACK.tts.engine || 'zerotts').toLowerCase() === 'edge' ? 'edge' : 'zerotts';
-const TTS_DEFAULT_VOICE = process.env.TTS_VOICE || PACK.tts.voice || 'maichi';
+const TTS_WORKERS = { zerotts: 'tts_worker.py', edge: 'tts_worker_edge.py', vibi: 'tts_worker_vibi.py' };
+const TTS_ENGINE = (() => {
+  const e = String(process.env.TTS_ENGINE || PACK.tts.engine || 'zerotts').toLowerCase();
+  return TTS_WORKERS[e] ? e : 'zerotts';
+})();
+// Vibi: 1 giọng cố định cho cả phòng (VIBI_VOICE_ID). Dự phòng edge-tts dùng giọng của gói phòng.
+const TTS_DEFAULT_VOICE =
+  TTS_ENGINE === 'vibi' ? process.env.VIBI_VOICE_ID || 'vibi' : process.env.TTS_VOICE || PACK.tts.voice || 'maichi';
 
 function isEdgeVoice(v) {
   return /^[a-z]{2,3}-[a-z]{2,4}-[a-z]+neural$/i.test(String(v || ''));
@@ -42,7 +49,7 @@ function isEdgeVoice(v) {
 // Giọng đang dùng: lấy từ cài đặt nếu hợp với bộ máy đọc hiện tại, không thì dùng giọng mặc định của gói
 function currentVoice() {
   const v = state?.settings?.ttsVoice;
-  if (!v) return TTS_DEFAULT_VOICE;
+  if (!v || TTS_ENGINE === 'vibi') return TTS_DEFAULT_VOICE;
   if (TTS_ENGINE === 'edge') return isEdgeVoice(v) ? v : TTS_DEFAULT_VOICE;
   return isEdgeVoice(v) ? TTS_DEFAULT_VOICE : v;
 }
@@ -55,7 +62,7 @@ class ZeroTTSManager {
     this.engine = TTS_ENGINE;
     this.voice = TTS_DEFAULT_VOICE;
     this.voices = [TTS_DEFAULT_VOICE];
-    this.model = TTS_ENGINE === 'edge' ? 'edge-tts' : 'zeroweight-ai/ZeroTTS';
+    this.model = { edge: 'edge-tts', vibi: 'vibi.pro', zerotts: 'zeroweight-ai/ZeroTTS' }[TTS_ENGINE];
     this.pending = new Map();
     this.inflight = new Map();
     this.reqCounter = 0;
@@ -100,13 +107,14 @@ class ZeroTTSManager {
 
   startWorker() {
     const pyBin = this.resolvePythonBin();
-    const scriptPath = path.join(__dirname, this.engine === 'edge' ? 'tts_worker_edge.py' : 'tts_worker.py');
+    const scriptPath = path.join(__dirname, TTS_WORKERS[this.engine]);
     console.log(`[TTS] Khởi chạy worker ${this.engine} với ${pyBin} (giọng mặc định: ${TTS_DEFAULT_VOICE})...`);
 
     this.status = 'loading';
     this.proc = spawn(pyBin, [scriptPath], {
       cwd: __dirname,
-      env: { ...process.env, EDGE_TTS_VOICE: process.env.EDGE_TTS_VOICE || TTS_DEFAULT_VOICE },
+      // Edge (chính hoặc dự phòng cho Vibi) luôn dùng giọng Microsoft của gói phòng
+      env: { ...process.env, EDGE_TTS_VOICE: process.env.EDGE_TTS_VOICE || (isEdgeVoice(TTS_DEFAULT_VOICE) ? TTS_DEFAULT_VOICE : PACK.tts.voice) },
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
@@ -180,7 +188,11 @@ class ZeroTTSManager {
     return {
       ready: this.ready,
       status: this.status,
-      engine: this.engine === 'edge' ? 'edge-tts (Microsoft Neural)' : 'ZeroTTS (zeroweight-ai/ZeroTTS)',
+      engine: {
+        edge: 'edge-tts (Microsoft Neural)',
+        vibi: `Vibi (${process.env.VIBI_PROVIDER || 'elevenlabs'})`,
+        zerotts: 'ZeroTTS (zeroweight-ai/ZeroTTS)'
+      }[this.engine],
       voice: currentVoice(),
       voices: this.voices,
       model: this.model
@@ -191,8 +203,8 @@ class ZeroTTSManager {
     const cleanText = String(text || '').trim();
     if (!cleanText) return Promise.resolve({ ok: false, error: 'Empty text' });
     const rawVoice = voiceOverride || currentVoice();
-    // ZeroTTS dùng tên giọng chữ thường; edge-tts phân biệt hoa/thường (worker tự tra lại cho đúng)
-    const voice = this.engine === 'edge' ? String(rawVoice) : String(rawVoice).toLowerCase();
+    // ZeroTTS dùng tên giọng chữ thường; edge-tts / Vibi phân biệt hoa/thường
+    const voice = this.engine === 'zerotts' ? String(rawVoice).toLowerCase() : String(rawVoice);
     const dedupKey = `${voice}::${cleanText}`;
 
     if (this.inflight.has(dedupKey)) {

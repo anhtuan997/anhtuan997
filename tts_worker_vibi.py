@@ -56,6 +56,8 @@ SIMILARITY = float(os.environ.get("VIBI_SIMILARITY", "0.75"))
 DAILY_LIMIT = int(os.environ.get("VIBI_DAILY_CHAR_LIMIT", "30000"))
 FALLBACK_VOICE = os.environ.get("EDGE_TTS_VOICE", "ko-KR-SunHiNeural")
 POLL_TIMEOUT_SEC = 45
+# Vibi (sau Cloudflare) trả 403 cho User-Agent mặc định "Python-urllib/x.y" => phải tự đặt tên trình gửi
+USER_AGENT = "tiktok-live-temple-rpc/1.0 (+tts_worker_vibi)"
 
 _out_lock = threading.Lock()
 _usage_lock = threading.Lock()
@@ -110,7 +112,8 @@ def http_json(method: str, path: str, body=None, timeout=20):
         f"{BASE_URL}{path}",
         method=method,
         data=json.dumps(body).encode("utf-8") if body is not None else None,
-        headers={"xi-api-key": API_KEY, "Content-Type": "application/json", "Accept": "application/json"},
+        headers={"xi-api-key": API_KEY, "Content-Type": "application/json", "Accept": "application/json",
+                 "User-Agent": USER_AGENT},
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -124,7 +127,7 @@ def http_json(method: str, path: str, body=None, timeout=20):
 def download(url: str, dest: Path) -> None:
     if url.startswith("/"):
         url = BASE_URL + url
-    req = urllib.request.Request(url, headers={"xi-api-key": API_KEY})
+    req = urllib.request.Request(url, headers={"xi-api-key": API_KEY, "User-Agent": USER_AGENT})
     tmp = dest.with_suffix(".part")
     with urllib.request.urlopen(req, timeout=30) as resp, open(tmp, "wb") as fh:
         fh.write(resp.read())

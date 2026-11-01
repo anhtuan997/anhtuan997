@@ -167,6 +167,17 @@ pm2 start ecosystem.config.cjs --only church-ko,temple-ko --update-env
 ```
 Hoặc chạy thử 1 phòng: `TTS_ENGINE=vibi VIBI_API_KEY=... VIBI_VOICE_ID=... npm run start:church-ko`.
 
+### Thu sẵn câu cố định — "thu 1 lần, dùng mãi"
+Nội dung đọc gồm 2 loại:
+- **Câu cố định**: lời Phật dạy / câu Kinh Thánh khi phòng vắng, thông báo giờ lễ, lời mời bình luận. Phòng Nhà thờ có 21 câu (khoảng 1.400 ký tự). Thu 1 lần là đủ:
+  ```bash
+  npm run pregen          # phòng đang chạy ở cổng 3002; phòng khác: PORT=3001 npm run pregen
+  ```
+  File giọng Vibi được giữ **60 ngày** (`VIBI_CACHE_DAYS`) và không bị dọn theo giới hạn 3000 file, nên những câu này về sau phát ngay, **không tốn thêm credit**.
+- **Câu có tên người xem và lời họ bình luận** ("김은혜님, …"): mỗi lần một khác, bắt buộc tạo mới. Phần tốn credit chính nằm ở đây.
+
+Muốn **giọng của chính bạn** thay vì giọng có sẵn: API Vibi có **nhân bản giọng** (*voice clone*, qua MiniMax). Bạn gửi một file thu âm giọng thật (tài liệu API ghi tối đa 20MB, có tuỳ chọn khử tiếng ồn) là được một giọng riêng, dùng như các giọng khác. Tài liệu không ghi thời lượng tối thiểu; thường nên thu rõ, ít tiếng ồn, khoảng 1 phút trở lên.
+
 ### An toàn chi phí khi chạy 24/7
 - Mỗi câu đọc **tốn credit theo số ký tự**. Câu đã đọc được lưu đệm, đọc lại không tốn thêm.
 - `VIBI_DAILY_CHAR_LIMIT` (mặc định **30.000 ký tự/ngày**): vượt hạn mức, **hết credit**, sai khoá hoặc Vibi lỗi ⇒ **tự chuyển sang giọng Microsoft miễn phí** (cần đã cài `edge-tts`), live không bị câm.
@@ -183,6 +194,39 @@ Hoặc chạy thử 1 phòng: `TTS_ENGINE=vibi VIBI_API_KEY=... VIBI_VOICE_ID=..
 | `VIBI_DAILY_CHAR_LIMIT` | `30000` | Hạn mức ký tự mỗi ngày (`0` = không giới hạn) |
 
 > Lưu ý bản quyền giọng: giọng trong thư viện cộng đồng ElevenLabs do người khác tạo; một số giọng có điều khoản riêng. Hãy đọc điều khoản sử dụng thương mại của Vibi / ElevenLabs trước khi phát kiếm tiền.
+
+---
+
+## 5C. Chạy trên MacBook (Apple M1 / M2 / M3)
+
+MacBook M1 Pro/Max chạy tốt cả 3 phòng cùng lúc, kể cả cảnh 3D Nhà thờ ở chất lượng cao nhất (`q=1`).
+
+```bash
+# Cài công cụ (một lần)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+brew install node python@3.12 ffmpeg
+brew install --cask obs
+npm install && npm run setup:tts-ko
+npm i -g pm2
+```
+
+**Giữ máy thức 24/7** (quan trọng nhất trên Mac):
+- Cắm sạc; **System Settings → Battery → Options**: bật *Prevent automatic sleeping when the display is off* (không tự ngủ khi tắt màn hình).
+- Hoặc chạy kèm: `caffeinate -dimsu &` (lệnh có sẵn của macOS, giữ máy không ngủ).
+- Gập máy sẽ ngủ ⇒ để mở, hoặc cắm màn hình ngoài.
+- **System Settings → General → Software Update**: tắt tự cài cập nhật (máy tự khởi động lại sẽ làm đứt live).
+
+**Tự chạy khi bật máy**: `pm2 startup` (in ra 1 lệnh `sudo …`, chạy lệnh đó) rồi `pm2 save`.
+
+**OBS trên Mac**: *Settings → Output → Encoder* chọn **Apple VT H264 Hardware Encoder** (dùng chip mã hoá video của máy, gần như không tốn CPU). Phần còn lại giống mục 6.
+
+**Biến môi trường Vibi trên Mac**: thêm vào `~/.zshrc`
+```bash
+export VIBI_API_KEY=khoá_của_bạn
+export VIBI_VOICE_ID=4p0HBzAAGyju0nYfNntV   # ví dụ: Sunny
+export VIBI_PROVIDER=elevenlabs
+```
+rồi `source ~/.zshrc && pm2 start ecosystem.config.cjs --only church-ko,temple-ko --update-env`.
 
 ---
 

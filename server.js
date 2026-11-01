@@ -1184,6 +1184,41 @@ setInterval(() => {
   runIdleTalk();
 }, 20 * 1000).unref();
 
+// "Thu sẵn" mọi câu cố định của phòng (không chứa tên người xem) => về sau đọc lại không tốn tiền/thời gian
+function staticSpeechLines() {
+  const lines = new Set();
+  for (const t of PACK.idleTalks || []) lines.add(t);
+  if (typeof PACK.speech.idle === 'function') {
+    for (const card of FORTUNE_DECK) lines.add(PACK.speech.idle({ card }));
+  }
+  for (const item of PACK.schedule || []) if (item.text) lines.add(item.text);
+  return [...lines];
+}
+let pregenRunning = null;
+async function pregenerateStaticSpeech() {
+  if (pregenRunning) return { running: true };
+  const lines = staticSpeechLines();
+  const report = { total: lines.length, ok: 0, cached: 0, failed: 0, chars: 0, engine: TTS_ENGINE };
+  pregenRunning = (async () => {
+    for (const text of lines) {
+      const res = await zeroTts.synthesize(text);
+      if (!res.ok) report.failed += 1;
+      else if (res.cached) report.cached += 1;
+      else {
+        report.ok += 1;
+        report.chars += text.length;
+      }
+    }
+  })();
+  try {
+    await pregenRunning;
+  } finally {
+    pregenRunning = null;
+  }
+  console.log(`[TTS] Thu sẵn câu cố định: ${JSON.stringify(report)}`);
+  return report;
+}
+
 // Chào người mới theo dõi: gom tên trong 6 giây, tối đa 1 lời chào / 20 giây (tránh nghẽn giọng đọc)
 const followQueue = [];
 let followTimer = null;
@@ -1277,6 +1312,8 @@ async function handleRpcCall(method, params = {}) {
     }
     case 'room.idleTalk':
       return runIdleTalk();
+    case 'room.pregenerate':
+      return pregenerateStaticSpeech();
     case 'room.followTest':
       queueFollowGreeting(params.user || 'Test');
       return { queued: followQueue.length };
@@ -1446,6 +1483,10 @@ app.get('/healthz', (_req, res) => {
 // Bộ đệm giọng đọc: mỗi câu khấn tạo 1 file WAV => chạy 24/7 sẽ đầy ổ cứng nếu không dọn
 const TTS_CACHE_MAX_AGE_MS = (Number(process.env.TTS_CACHE_MAX_AGE_HOURS) || 24) * 3600 * 1000;
 const TTS_CACHE_MAX_FILES = Number(process.env.TTS_CACHE_MAX_FILES) || 3000;
+// File giọng Vibi là file TRẢ TIỀN => giữ lâu hơn (mặc định 60 ngày) và không tính vào giới hạn số file.
+// Nhờ vậy các câu cố định (lời dạy, câu Kinh Thánh, giờ lễ) chỉ "thu" 1 lần rồi dùng lại mãi.
+const PAID_CACHE_MAX_AGE_MS = (Number(process.env.VIBI_CACHE_DAYS) || 60) * 24 * 3600 * 1000;
+const isPaidAudio = (name) => name.startsWith('vibi_');
 async function cleanTtsCache() {
   try {
     const names = await fs.promises.readdir(TTS_CACHE_DIR);
@@ -1454,7 +1495,12 @@ async function cleanTtsCache() {
       const full = path.join(TTS_CACHE_DIR, name);
       try {
         const st = await fs.promises.stat(full);
-        if (st.isFile()) files.push({ full, mtime: st.mtimeMs });
+        if (!st.isFile()) continue;
+        if (isPaidAudio(name)) {
+          if (Date.now() - st.mtimeMs > PAID_CACHE_MAX_AGE_MS) await fs.promises.unlink(full).catch(() => {});
+          continue;
+        }
+        files.push({ full, mtime: st.mtimeMs });
       } catch (_) {}
     }
     files.sort((a, b) => b.mtime - a.mtime); // mới nhất trước

@@ -927,7 +927,10 @@ async function connectTikTokLive(usernameOrUrl) {
   const conn = new TikTokLiveConnection(cleanUser, {
     processInitialData: true,
     fetchRoomInfoOnConnect: false,
-    enableExtendedGiftInfo: false
+    enableExtendedGiftInfo: false,
+    // Thư viện nhờ máy chủ ký Euler Stream (eulerstream.com). Gói miễn phí giới hạn số lần kết nối;
+    // chạy 24/7 (tự kết nối lại nhiều lần) nên tạo khoá miễn phí/trả phí ở đó và đặt TIKTOK_SIGN_API_KEY.
+    ...(process.env.TIKTOK_SIGN_API_KEY ? { signApiKey: process.env.TIKTOK_SIGN_API_KEY } : {})
   });
   tiktokConn = conn;
 

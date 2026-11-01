@@ -55,6 +55,8 @@ module.exports = {
         PACK: 'church.ko',
         PORT: 3002,
         TIKTOK_USER: 'tai_khoan_nha_tho_han', // <== SỬA thành tài khoản TikTok của bạn
+        // Khoá máy chủ ký Euler Stream (tuỳ chọn, nên có khi chạy 24/7): export TIKTOK_SIGN_API_KEY=...
+        ...(process.env.TIKTOK_SIGN_API_KEY ? { TIKTOK_SIGN_API_KEY: process.env.TIKTOK_SIGN_API_KEY } : {}),
         IDLE_TALK_MINUTES: 5,
         MAX_DEVOTEES: 5000,
         TTS_CACHE_MAX_AGE_HOURS: 24,

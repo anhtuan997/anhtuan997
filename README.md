@@ -27,6 +27,8 @@ npm install && npm run setup:tts-ko
 npm run start:church-ko        # http://localhost:3002
 npm test                       # kiểm thử tự động
 ```
+👉 **Chạy trên máy của bạn: [HUONG-DAN-MAY-CUC-BO.md](HUONG-DAN-MAY-CUC-BO.md)**
+
 👉 Hướng dẫn đầy đủ, số liệu tôn giáo Hàn Quốc, quy định TikTok Hàn, lưu ý bản quyền: **[docs/KOREA-24-7.md](docs/KOREA-24-7.md)**
 
 ---
